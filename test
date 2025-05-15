@@ -1,2 +1,22 @@
-print("hello Anh Khoa") # ok không vô sửa đc mã không
+import cv2
+import os
 
+# Khởi tạo webcam (0 là camera mặc định)
+cap = cv2.VideoCapture(0)
+
+if not cap.isOpened():
+    print("Không thể mở camera")
+    exit()
+
+ret, frame = cap.read()
+if ret:
+    # Lưu ảnh vừa chụp vào file
+    cv2.imwrite('captured_image.jpg', frame)
+    print("Đã chụp và lưu ảnh thành công!")
+else:
+    print("Không thể chụp ảnh")
+
+cap.release()
+cv2.destroyAllWindows()
+
+print("Đường dẫn lưu ảnh:", os.path.abspath('captured_image.jpg'))
