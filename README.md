@@ -1,1 +1,1 @@
-app phiên dịch ngôn ngữ kí hiệu cho máy tính và điện thoại (bản thử nghiệm)
+nơi tập chung các dự án dưới dạng thành phẩm hoặc bán thành phẩm 
