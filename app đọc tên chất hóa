@@ -1,0 +1,253 @@
+import sys
+from collections import Counter
+
+def main():
+    print("Đọc tên hydrocarbon (chưa đọc được arene)")
+    phan_nen = [0,'meth','eth','prop','but','pent','hex','hept','oct','non','dec']
+    while True:
+        try:
+            a = int(input("Số nguyên tử C trong mạch chính: "))
+            b = int(input("Vị trí liên kết bội (0 nếu không có): "))
+            c = int(input("Loại liên kết (0: đơn, 2: đôi, 3: ba): "))
+            if a <= 0 or b < 0 or b >= a and c != 0 or c not in [0, 2, 3]:
+                print("Đầu vào không hợp lệ. Vui lòng kiểm tra lại.")
+            elif c == 0 and b != 0:
+                print("Đầu vào không hợp lệ. Alkane không có vị trí liên kết bội khác 0.")
+            elif c != 0 and b == 0:
+                print("Đầu vào không hợp lệ. Alkene/Alkyne cần có vị trí liên kết bội.")
+            else:
+                break
+        except ValueError:
+            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+
+    while True:
+        try:
+            d = input("Hydrocarbon có phân nhánh không? (y/n): ").lower()
+            if d in ['y', 'n']:
+                if d == 'n':
+                    if 1 <= a <= 10:
+                        if c == 0:
+                            no1 = a * 2 + 2
+                            print(f'Alkane: {phan_nen[a]}ane')
+                            print(f"Công thức: C{a}H{no1}")
+                        elif c == 2 and b >= 1:
+                            no2 = a * 2
+                            print(f'Alkene: {phan_nen[a]}-{b}-ene')
+                            print(f"Công thức: C{a}H{no2}")
+                        elif c == 3 and b >= 1:
+                            no3 = a * 2 - 2
+                            print(f'Alkyne: {phan_nen[a]}-{b}-yne')
+                            print(f"Công thức: C{a}H{no3}")
+                        elif c != 0 and b == 0:
+                            print("Đầu vào không hợp lệ. Liên kết bội cần có vị trí.")
+                    else:
+                        print("Số nguyên tử C ngoài phạm vi hỗ trợ (1-10).")
+                    break
+                elif d == 'y':
+                    if a <= 2:
+                        print("Hydrocarbon có số nguyên tử C <= 2 không thể có nhánh.")
+                    elif c == 0: # Alkane có nhánh
+                        ten_mach_chinh = phan_nen[a] + "ane"
+                        try:
+                            so_nhanh = int(input("Nhập số nhánh trong mạch chính: "))
+                            if so_nhanh < 0 or so_nhanh > a - 2: # Số nhánh tối đa là a-2
+                                print("Số nhánh không hợp lệ.")
+                            else:
+                                vi_tri_nhanh = []
+                                for i in range(so_nhanh):
+                                    while True:
+                                        try:
+                                            vi_tri = int(input(f"Nhập vị trí của nhánh thứ {i+1} trên mạch chính: "))
+                                            if vi_tri <= 1 or vi_tri >= a:
+                                                print("Vị trí nhánh không hợp lệ. Nhánh không thể ở đầu mạch.")
+                                            elif vi_tri in vi_tri_nhanh:
+                                                print("Vị trí nhánh này đã được nhập.")
+                                            else:
+                                                vi_tri_nhanh.append(vi_tri)
+                                                break
+                                        except ValueError:
+                                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+
+                                so_c_nhanh = []
+                                for i in range(so_nhanh):
+                                    while True:
+                                        try:
+                                            c_nhanh = int(input(f"Nhập số nguyên tử C trong nhánh thứ {i+1}: "))
+                                            if 1 <= c_nhanh <= 10:
+                                                so_c_nhanh.append(c_nhanh)
+                                                break
+                                            else:
+                                                print("Số nguyên tử C trong nhánh phải từ 1 đến 10.")
+                                        except ValueError:
+                                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+
+                                ten_nhanh = [phan_nen[so_c] + "yl" for so_c in so_c_nhanh]
+
+                                # Sắp xếp các nhánh theo thứ tự bảng chữ cái
+                                nhanh_sorted = sorted(zip(ten_nhanh, vi_tri_nhanh), key=lambda x: x[0])
+                                ten_nhanh_sorted, vi_tri_nhanh_sorted = zip(*nhanh_sorted)
+
+                                # Xử lý tiền tố di, tri,...
+                                count_nhanh = Counter(ten_nhanh_sorted)
+                                final_ten_nhanh = []
+                                final_vi_tri_nhanh = []
+                                processed = set()
+
+                                for i, ten in enumerate(ten_nhanh_sorted):
+                                    if ten not in processed:
+                                        count = count_nhanh[ten]
+                                        indices = [vi_tri_nhanh_sorted[j] for j, t in enumerate(ten_nhanh_sorted) if t == ten]
+                                        if count > 1:
+                                            prefix = ""
+                                            if count == 2:
+                                                prefix = "di"
+                                            elif count == 3:
+                                                prefix = "tri"
+                                            elif count == 4:
+                                                prefix = "tetra"
+                                            elif count == 5:
+                                                prefix = "penta"
+                                            elif count == 6:
+                                                prefix = "hexa"
+                                            elif count == 7:
+                                                prefix = "hepta"
+                                            elif count == 8:
+                                                prefix = "octa"
+                                            elif count == 9:
+                                                prefix = "nona"
+                                            elif count == 10:
+                                                prefix = "deca"
+                                            elif count == 11:
+                                                prefix = "undeca"
+                                            elif count == 12:
+                                                prefix = "dodeca"
+                                            elif count == 13:
+                                                prefix = "trideca"
+                                            elif count == 14:
+                                                prefix = "tetradeca"
+                                            elif count == 15:
+                                                prefix = "pentadeca"
+                                            elif count == 16:
+                                                prefix = "hexadeca"                                       
+                                            final_ten_nhanh.append(f"{','.join(map(str, indices))}-{prefix}{ten}")
+                                        else:
+                                            final_ten_nhanh.append(f"{indices[0]}-{ten}")
+                                        processed.add(ten)
+
+                                print("Tên hydrocarbon: " + "".join(final_ten_nhanh) + ten_mach_chinh)
+                                break
+
+                        except ValueError:
+                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+                    elif c in [2, 3]: # Alkene hoặc Alkyne có nhánh
+                        ten_mach_chinh = phan_nen[a]
+                        if c == 2:
+                            ten_mach_chinh += "ene"
+                        else:
+                            ten_mach_chinh += "yne"
+
+                        try:
+                            so_nhanh = int(input("Nhập số nhánh trong mạch chính: "))
+                            if so_nhanh < 0 or so_nhanh > a - 2:
+                                print("Số nhánh không hợp lệ.")
+                            else:
+                                vi_tri_nhanh = []
+                                for i in range(so_nhanh):
+                                    while True:
+                                        try:
+                                            vi_tri = int(input(f"Nhập vị trí của nhánh thứ {i+1} trên mạch chính: "))
+                                            if vi_tri <= 0 or vi_tri >= a:
+                                                print("Vị trí nhánh không hợp lệ.")
+                                            elif vi_tri in vi_tri_nhanh:
+                                                print("Vị trí nhánh này đã được nhập.")
+                                            else:
+                                                vi_tri_nhanh.append(vi_tri)
+                                                break
+                                        except ValueError:
+                                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+
+                                so_c_nhanh = []
+                                for i in range(so_nhanh):
+                                    while True:
+                                        try:
+                                            c_nhanh = int(input(f"Nhập số nguyên tử C trong nhánh thứ {i+1}: "))
+                                            if 1 <= c_nhanh <= 10:
+                                                so_c_nhanh.append(c_nhanh)
+                                                break
+                                            else:
+                                                print("Số nguyên tử C trong nhánh phải từ 1 đến 10.")
+                                        except ValueError:
+                                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+
+                                ten_nhanh = [phan_nen[so_c] + "yl" for so_c in so_c_nhanh]
+
+                                # Sắp xếp các nhánh theo thứ tự bảng chữ cái
+                                nhanh_sorted = sorted(zip(ten_nhanh, vi_tri_nhanh), key=lambda x: x[0])
+                                ten_nhanh_sorted, vi_tri_nhanh_sorted = zip(*nhanh_sorted)
+
+                                # Xử lý tiền tố di, tri,...
+                                count_nhanh = Counter(ten_nhanh_sorted)
+                                final_ten_nhanh = []
+                                final_vi_tri_nhanh = []
+                                processed = set()
+
+                                for i, ten in enumerate(ten_nhanh_sorted):
+                                    if ten not in processed:
+                                        count = count_nhanh[ten]
+                                        indices = [vi_tri_nhanh_sorted[j] for j, t in enumerate(ten_nhanh_sorted) if t == ten]
+                                        if count > 1:
+                                            prefix = ""
+                                            if count == 2:
+                                                prefix = "di"
+                                            elif count == 3:
+                                                prefix = "tri"
+                                            elif count == 4:
+                                                prefix = "tetra"
+                                            elif count == 5:
+                                                prefix = "penta"
+                                            elif count == 6:
+                                                prefix = "hexa"
+                                            elif count == 7:
+                                                prefix = "hepta"
+                                            elif count == 8:
+                                                prefix = "octa"
+                                            elif count == 9:
+                                                prefix = "nona"
+                                            elif count == 10:
+                                                prefix = "deca"
+                                            elif count == 11:
+                                                prefix = "undeca"
+                                            elif count == 12:
+                                                prefix = "dodeca"
+                                            elif count == 13:
+                                                prefix = "trideca"
+                                            elif count == 14:
+                                                prefix = "tetradeca"
+                                            elif count == 15:
+                                                prefix = "pentadeca"
+                                            elif count == 16:
+                                                prefix = "hexadeca"
+                                            final_ten_nhanh.append(f"{','.join(map(str, indices))}-{prefix}{ten}")
+                                        else:
+                                            final_ten_nhanh.append(f"{indices[0]}-{ten}")
+                                        processed.add(ten)
+
+                                print(f"Tên hydrocarbon: {''.join(final_ten_nhanh)}{ten_mach_chinh}-{b}")
+                                break
+
+                        except ValueError:
+                            print("Đầu vào không hợp lệ. Vui lòng chỉ nhập số.")
+                    break
+            else:
+                print("Ký tự không hợp lệ. Vui lòng nhập lại (y hoặc n).")
+        except ValueError:
+            print("Ký tự không hợp lệ. Vui lòng nhập lại (y hoặc n).")
+
+    restart = input("Bạn có muốn khởi động lại chương trình? (y/n): ").lower()
+    if restart == 'y':
+        main()
+    else:
+        sys.exit("Chương trình kết thúc. Cảm ơn bạn!")
+
+if __name__ == "__main__":
+    main()
