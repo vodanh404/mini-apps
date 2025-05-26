@@ -1,0 +1,71 @@
+# khai báo thư viện
+nhập cv2
+nhập numpy dưới dạng np
+từ tkinter nhập *        
+từ tkinter.ttk nhập *
+# màu nhận dạng chương trình
+định nghĩa start_detection():
+    # mở webcam
+    webcam = cv2.VideoCapture(0)
+    trong khi Đúng:
+            ret, imageFrame = webcam.read() # đọc ảnh từ webcam
+            nếu không ret:
+                phá vỡ
+            hsvFrame = cv2.cvtColor(imageFrame, cv2.COLOR_BGR2HSV) # chuyển đổi ảnh sang không gian màu HSV
+
+            nếu đỏ_var.get():
+                red_lower = np. mảng([136, 87, 111], np.uint8)
+                red_upper = np. mảng([180, 255, 255], np.uint8)
+                red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
+                đường viền, _ = cv2.findContours(red_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                cho đường viền trong đường viền:
+                    diện tích = cv2.contourArea(đường viền)
+                    nếu diện tích > 500: # chỉ vẽ viền cho vật đủ lớn
+                        cv2.drawContours(imageFrame, [đường viền], -1, (0,0,255), 3)
+                        cv2.putText(imageFrame, "đỏ", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+
+            nếu xanh_lá_var.get():
+                green_lower = np. mảng([25, 52, 72], np.uint8)
+                green_upper = np.array([102, 255, 255], np.uint8)
+                green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
+                đường viền, _ = cv2.findContours(green_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                cho đường viền trong đường viền:
+                    diện tích = cv2.contourArea(đường viền)
+                    nếu diện tích > 500:
+                        cv2.drawContours(imageFrame, [đường viền], -1, (0,255,0), 3)
+                        cv2.putText(imageFrame, "xanh lá cây", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+
+            if xanh_nước_biển_var.get():
+                blue_lower = np.array([94, 80, 2], np.uint8)
+                blue_upper = np. mảng([120, 255, 255], np.uint8)
+                blue_mask = cv2.inRange(hsvFrame, blue_lower, blue_upper)
+                đường viền, _ = cv2.findContours(blue_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                cho đường viền trong đường viền:
+                    diện tích = cv2.contourArea(đường viền)
+                    nếu diện tích > 500:
+                        cv2.drawContours(imageFrame, [đường viền], -1, (255,0,0), 3)
+                        cv2.putText(imageFrame, "xanh lam", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+
+            cv2.imshow("Phát hiện màu sắc", imageFrame)
+            khóa = cv2.waitKey(1) & 0xFF
+            nếu key == ord('q') hoặc key == 27: # 27 là mã ESC
+                phá vỡ
+    webcam.phát hành()
+    cv2.destroyAllWindows()
+
+# chương trình chọn màu
+gốc = Tk()         
+root.title('Chọn màu cần nhận diện')
+gốc.hình học('300x200')     
+# tạo nút và gắn các chức năng
+đỏ_var = BooleanVar(value=True)
+xanh_lá_var = BooleanVar(value=True)
+xanh_nước_biển_var = BooleanVar(value=True)
+
+Checkbutton(root, text='Đỏ', Variable=đỏ_var).pack(anchor='w')
+Checkbutton(root, text='Xanh lá', Variable=xanh_lá_var).pack(anchor='w')
+Checkbutton(root, text='Xanh nước biển', Variable=xanh_nước_biển_var).pack(anchor='w')
+
+Button(root, text='Bắt đầu nhận diện', command=start_ detection).pack(pady=10)
+Nút(root, text='Thoát', lệnh=root.destroy).pack(pady=5)
+root.mainloop()
