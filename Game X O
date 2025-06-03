@@ -1,0 +1,119 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+
+class TicTacToe:
+    def __init__(self, master):
+        master.title("Game XO")
+        master.geometry("300x350")
+        
+        self.current_player = "X"
+        self.game_active = True  # Biến kiểm soát khi AI đánh, người chơi không thể bấm
+        self.board = [["" for _ in range(3)] for _ in range(3)]
+        self.buttons = [[tk.Button(master, text="", font=("Helvetica", 24), width=4, height=2,
+                                   command=lambda r=row, c=col: self.on_click(r, c))
+                         for col in range(3)] for row in range(3)]
+        
+        for row in range(3):
+            for col in range(3):
+                self.buttons[row][col].grid(row=row, column=col, padx=2, pady=2)
+        
+        self.status = tk.Label(master, text=f"Lượt của: {self.current_player}", font=("Helvetica", 14))
+        self.status.grid(row=3, column=0, columnspan=3, pady=10)
+        
+        tk.Button(master, text="Chơi lại", font=("Helvetica", 12), command=self.reset_game).grid(row=4, column=0, columnspan=3, pady=5)
+
+        self.taunts = [
+            "Lại thua rồi à? Bạn có muốn tôi giảm sức mạnh không? 😏",
+            "Có vẻ bạn chưa đủ trình để đấu với tôi 😎",
+            "Tôi chưa thấy ai thua nhanh như bạn, thật xuất sắc! 😂",
+            "Bạn có đang chơi không vậy? Hay đang 'nghiên cứu thất bại'?",
+            "Trình của bạn cần nâng cấp gấp! 🤖",
+            "Máy thắng rồi! Tôi có nên gọi cấp cứu tâm lý cho bạn không? 🤯"
+        ]
+
+    def on_click(self, row, col):
+        if self.board[row][col] == "" and self.game_active:
+            self.make_move(row, col, "X")
+            if not self.check_game_state():
+                self.game_active = False  # Người chơi không thể bấm khi AI đánh
+                self.master.after(500, self.ai_move)
+
+    def make_move(self, row, col, player):
+        self.board[row][col] = player
+        self.buttons[row][col].config(text=player, state=tk.DISABLED)
+        self.check_game_state()
+
+    def ai_move(self):
+        if not self.check_game_state():
+            best_move = None
+            best_score = -float('inf')
+
+            for r in range(3):
+                for c in range(3):
+                    if self.board[r][c] == "":
+                        self.board[r][c] = "O"
+                        score = self.minimax(self.board, 0, False)
+                        self.board[r][c] = ""  # Hoàn tác nước đi
+
+                        if score > best_score:
+                            best_score = score
+                            best_move = (r, c)
+
+            if best_move:
+                self.make_move(best_move[0], best_move[1], "O")
+
+            self.game_active = True  # Sau khi AI đánh xong, người chơi có thể bấm tiếp
+
+    def minimax(self, board, depth, is_max):
+        if self.check_win("O"): return 1
+        if self.check_win("X"): return -1
+        if self.check_draw(): return 0
+
+        best_score = -float('inf') if is_max else float('inf')
+
+        for r in range(3):
+            for c in range(3):
+                if board[r][c] == "":
+                    board[r][c] = "O" if is_max else "X"
+                    score = self.minimax(board, depth + 1, not is_max)
+                    board[r][c] = ""  # Hoàn tác nước đi
+                    best_score = max(score, best_score) if is_max else min(score, best_score)
+                    
+        return best_score
+
+    def check_win(self, player):
+        return any(all(self.board[r][c] == player for c in range(3)) for r in range(3)) or \
+               any(all(self.board[r][c] == player for r in range(3)) for c in range(3)) or \
+               all(self.board[i][i] == player for i in range(3)) or \
+               all(self.board[i][2-i] == player for i in range(3))
+
+    def check_draw(self):
+        return all(self.board[r][c] != "" for r in range(3) for c in range(3))
+
+    def check_game_state(self):
+        if self.check_win("X"):
+            messagebox.showinfo("Game XO", "Chúc mừng! Bạn đã thắng!")
+        elif self.check_win("O"):
+            messagebox.showinfo("Game XO", random.choice(self.taunts))
+        elif self.check_draw():
+            messagebox.showinfo("Game XO", "Hòa rồi! Chúng ta cùng chơi lại nhé!")
+        else:
+            return False
+        self.master.after(1500, self.reset_game)
+        return True
+
+    def reset_game(self):
+        self.current_player = "X"
+        self.game_active = True  # Reset trạng thái để người chơi có thể bấm lại
+        self.board = [["" for _ in range(3)] for _ in range(3)]
+        self.status.config(text=f"Lượt của: {self.current_player}")
+        for row in range(3):
+            for col in range(3):
+                self.buttons[row][col].config(text="", state=tk.NORMAL)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = TicTacToe(root)
+    game.master = root
+    root.mainloop()
