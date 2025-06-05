@@ -1,0 +1,164 @@
+# khai báo thư viện
+import os
+import time
+import calendar
+from datetime import datetime
+from tkinter import *
+from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog
+import cv2
+from PIL import Image, ImageTk
+import smtplib
+
+# Tính năng 1: Đồng hồ và lịch
+def clock():
+    # Tạo cửa sổ chính
+    root = Toplevel()
+    root.title("1. Đồng hồ và lịch")
+    tinh_nang_1 = ttk.Frame(root, padding=20)
+    tinh_nang_1.grid()
+    # Tạo các nhãn cho ngày, giờ và lịch
+    hom_nay = ttk.Label(tinh_nang_1, text="", anchor="center", font=("Helvetica", 16))
+    hom_nay.grid(column=0, row=0, columnspan=2, pady=5)
+    thoi_gian = ttk.Label(tinh_nang_1, text="", anchor="center", font=("Helvetica", 24, "bold"))
+    thoi_gian.grid(column=0, row=1, columnspan=2, pady=5)
+    calendar_label = ttk.Label(tinh_nang_1, text="", anchor="center", justify=LEFT, font=("Courier New", 12))
+    calendar_label.grid(column=0, row=2, columnspan=2, pady=5)
+    def update_clock():
+        # Lấy ngày và giờ hiện tại
+        hom_nay_data = datetime.now().strftime("%d-%m-%Y")
+        thoi_gian_data = datetime.now().strftime("%H:%M:%S")
+        # Cập nhật các nhãn
+        hom_nay.config(text=f"Ngày hôm nay: {hom_nay_data}")
+        thoi_gian.config(text=f"Thời gian: {thoi_gian_data}")
+        root.after(1000, update_clock)
+    # Lấy lịch cả năm
+    text_calendar = calendar.TextCalendar()
+    year = datetime.now().year
+    all_lich = text_calendar.formatyear(year)
+    calendar_label.config(text=f"Lịch năm nay: {all_lich}")
+    # Gọi hàm update_clock ban đầu để hiển thị đồng hồ ngay lập tức
+    update_clock()
+    root.mainloop()
+# Tính năng 2: Máy ảnh
+recording = False
+video_writer = None
+def camera():
+    global recording, video_writer
+    root = Toplevel()
+    root.title("2. Máy ảnh")
+    cap = cv2.VideoCapture(0)
+
+    tinh_nang_2 = ttk.Frame(root, padding=20)
+    tinh_nang_2.grid()
+    label = Label(tinh_nang_2)
+    label.grid(column=0, row=0, columnspan=2, sticky="ew")
+
+    def update_frame():
+        ret, frame = cap.read()
+        if ret:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame)
+            img_tk = ImageTk.PhotoImage(image=img)
+            label.img_tk = img_tk
+            label.config(image=img_tk)
+            if recording and video_writer is not None:
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame_bgr)
+        root.after(10, update_frame)
+
+    def on_closing():
+        cap.release()
+        if video_writer is not None:
+            video_writer.release()
+        root.destroy()
+
+    def chup_anh():
+        ret, frame = cap.read()
+        if ret:
+            filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".jpg"
+            cv2.imwrite(filename, frame)
+            print(f"Ảnh đã được lưu: {filename}")
+
+    def quay_video():
+        global recording, video_writer
+        if not recording:
+            recording = True
+            filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            video_writer = cv2.VideoWriter(filename, fourcc, 20.0, (640, 480))
+            print(f"Bắt đầu quay video: {filename}")
+        else:
+            recording = False
+            if video_writer is not None:
+                video_writer.release()
+                print("Dừng quay video")
+            video_writer = None
+
+    def mo_kho_luu_tru():
+        os.startfile(os.getcwd())
+
+    ttk.Button(tinh_nang_2, text="Chụp ảnh", command=chup_anh).grid(column=0, row=1, columnspan=2, sticky="ew")
+    ttk.Button(tinh_nang_2, text="Quay video", command=quay_video).grid(column=0, row=2, columnspan=2, sticky="ew")
+    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=3, columnspan=2, sticky="ew")
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    update_frame()
+    root.mainloop()
+# Tính năng 3: Gửi thư  
+SENDER_EMAIL = "ungdungthu3@gmail.com"
+SENDER_PASSWORD = "dvmq ponq gplj awdq"
+def gui_thu():
+    def send_email():
+        try:
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            email_message = f"Subject: {subject_entry.get()}\n\n{message_text.get('1.0', END)}".encode("utf-8")
+            server.sendmail(SENDER_EMAIL, recipient_entry.get(), email_message)
+            server.quit()
+            messagebox.showinfo("Thành công", "Email đã được gửi!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể gửi email: {e}")
+
+    root = Toplevel()
+    root.title("3.Gửi thư")
+
+    Label(root, text="Người gửi:").grid(row=0, column=0)
+    Label(root, text=SENDER_EMAIL).grid(row=0, column=1)
+
+    Label(root, text="Người nhận:").grid(row=1, column=0)
+    recipient_entry = Entry(root, width=40); recipient_entry.grid(row=1, column=1)
+
+    Label(root, text="Chủ đề:").grid(row=2, column=0)
+    subject_entry = Entry(root, width=40); subject_entry.grid(row=2, column=1)
+
+    Label(root, text="Nội dung:").grid(row=3, column=0)
+    message_text = Text(root, height=10, width=50); message_text.grid(row=3, column=1)
+
+    Button(root, text="Gửi", command=send_email).grid(row=4, column=1)
+    
+    root.mainloop()
+# Tính năng 4: Máy phát nhạc
+
+    
+
+
+
+
+
+
+root = Tk()
+frm = ttk.Frame(root, padding=10)
+frm.grid()
+ttk.Label(frm, text="Menu", anchor="center").grid(column=0, row=0, columnspan=2, sticky="ew")
+ttk.Button(frm, text="1.Đồng hồ và lịch", command= clock).grid(column=0, row=1, columnspan=2, sticky="ew")
+ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew")
+ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew")
+'''
+ttk.Button(frm, text="4.Máy tính", command=my_function).grid(column=0, row=4, columnspan=2, sticky="ew")
+ttk.Button(frm, text="5.Thời tiết", command=my_function).grid(column=0, row=5, columnspan=2, sticky="ew")
+ttk.Button(frm, text="6.Game ", command=my_function).grid(column=0, row=6, columnspan=2, sticky="ew")
+
+ttk.Button(frm, text="7.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=6, columnspan=2, sticky="ew")
+'''
+root.mainloop()
