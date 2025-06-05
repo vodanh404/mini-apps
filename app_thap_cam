@@ -138,13 +138,97 @@ def gui_thu():
     Button(root, text="Gửi", command=send_email).grid(row=4, column=1)
     
     root.mainloop()
-# Tính năng 4: Máy phát nhạc
+# Tính năng 4: Máy tính
+def may_tinh():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 5: Thời tiết
+def thoi_tiet():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 6: Game mini
+def mini_game():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 7: Đồng hồ đếm ngược
+def dem_nguoc():
+    def start_countdown():
+        try:
+            seconds = int(entry.get())
+            if seconds < 0:
+                raise ValueError("Thời gian không thể âm.")
+            countdown(seconds)
+        except ValueError as e:
+            messagebox.showerror("Lỗi", f"Vui lòng nhập một số hợp lệ: {e}")
 
+    def countdown(seconds):
+        if seconds >= 0:
+            label.config(text=f"Đếm ngược: {seconds} giây")
+            root.after(1000, countdown, seconds - 1)
+        else:
+            label.config(text="Hết giờ!")
+
+    root = Toplevel()
+    root.title("7. Đồng hồ đếm ngược")
+    ttk.Label(root, text="Nhập thời gian (giây):").grid(column=0, row=0)
+    entry = ttk.Entry(root); entry.grid(column=1, row=0)
+    ttk.Button(root, text="Bắt đầu", command=start_countdown).grid(column=2, row=0)
+    label = ttk.Label(root, text="Đếm ngược: 0 giây", font=("Helvetica", 16))
+    label.grid(column=0, row=1, columnspan=3)    
+# Tính năng 8: Máy phát nhạc
+def may_phat_nhac():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 9: Viết văn bản
+def van_ban():
+    root = Toplevel()
+    root.title("9. Viết văn bản")
+    text_area = Text(root, wrap="word", font=("Arial", 12))
+    text_area.pack(expand=True, fill="both")
     
+    def save_file():
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if file_path:
+            with open(file_path, "w", encoding="utf-8") as file:
+                file.write(text_area.get("1.0", END))
+            messagebox.showinfo("Thông báo", "Tệp đã được lưu thành công.")
+    
+    def open_file():
+        file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if file_path:
+            with open(file_path, "r", encoding="utf-8") as file:
+                text_area.delete("1.0", END)
+                text_area.insert("1.0", file.read())
+    
+    ttk.Button(root, text="Lưu tệp", command=save_file).pack(side=LEFT, padx=5, pady=5)
+    ttk.Button(root, text="Mở tệp", command=open_file).pack(side=LEFT, padx=5, pady=5)
+    root.mainloop()
+# Tính năng 10: Thay đổi giao diện người dùng
+def giao_dien():
+    def change_theme():
+        selected_theme = theme_var.get()
+        if selected_theme == "Dark":
+            root.tk_setPalette(background="#2E2E2E", foreground="#FFFFFF")
+        elif selected_theme == "Light":
+            root.tk_setPalette(background="#FFFFFF", foreground="#000000")
+        else:
+            root.tk_setPalette(background="#F0F0F0", foreground="#000000")
 
-
-
-
+    root = Toplevel()
+    root.title("10. Thay đổi giao diện người dùng")
+    theme_var = StringVar(value="Light")
+    ttk.Label(root, text="Chọn giao diện:").pack(pady=10)
+    ttk.Radiobutton(root, text="Dark", variable=theme_var, value="Dark", command=change_theme).pack(anchor=W)
+    ttk.Radiobutton(root, text="Light", variable=theme_var, value="Light", command=change_theme).pack(anchor=W)
+    ttk.Radiobutton(root, text="Default", variable=theme_var, value="Default", command=change_theme).pack(anchor=W)
+# Tính năng 11: Đôi lời của nhà sản xuất
+def doi_loi():
+    root = Toplevel()
+    root.title("11. Đôi lời của nhà sản xuất")
+    message = (
+        "Chào mừng bạn đến với ứng dụng của chúng tôi!\n"
+        "Chúng tôi hy vọng bạn sẽ tìm thấy những tính năng hữu ích và thú vị.\n"
+        "Nếu bạn có bất kỳ câu hỏi hoặc đề xuất nào, vui lòng liên hệ với chúng tôi.\n"
+        "Cảm ơn bạn đã sử dụng ứng dụng!\n"
+        "Hợp tác và phát triển : Đinh Viết Phúc và Ngô Văn Anh Khoa."
+    )
+    ttk.Label(root, text=message, wraplength=300, justify="center").pack(padx=20, pady=20)
 
 
 root = Tk()
@@ -154,11 +238,13 @@ ttk.Label(frm, text="Menu", anchor="center").grid(column=0, row=0, columnspan=2,
 ttk.Button(frm, text="1.Đồng hồ và lịch", command= clock).grid(column=0, row=1, columnspan=2, sticky="ew")
 ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew")
 ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew")
-'''
-ttk.Button(frm, text="4.Máy tính", command=my_function).grid(column=0, row=4, columnspan=2, sticky="ew")
-ttk.Button(frm, text="5.Thời tiết", command=my_function).grid(column=0, row=5, columnspan=2, sticky="ew")
-ttk.Button(frm, text="6.Game ", command=my_function).grid(column=0, row=6, columnspan=2, sticky="ew")
+ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew")
+ttk.Button(frm, text="5.Thời tiết", command=thoi_tiet).grid(column=0, row=5, columnspan=2, sticky="ew")
+ttk.Button(frm, text="6.Game ", command=mini_game).grid(column=0, row=6, columnspan=2, sticky="ew")
+ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew")
+ttk.Button(frm, text="8. Máy phát nhạc ", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew")
+ttk.Button(frm, text="9. Viết văn bản ", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew")
+ttk.Button(frm, text="10.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=10, columnspan=2, sticky="ew")
+ttk.Button(frm, text="11. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=11, columnspan=2, sticky="ew")
 
-ttk.Button(frm, text="7.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=6, columnspan=2, sticky="ew")
-'''
 root.mainloop()
