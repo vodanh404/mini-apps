@@ -1,0 +1,565 @@
+# khai báo thư viện
+import os
+import cv2
+import time
+import calendar
+import smtplib
+import requests
+import pygame
+import subprocess
+import json
+from tkinter import *
+from datetime import datetime
+from PIL import Image, ImageTk
+from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog, colorchooser, simpledialog, filedialog, Listbox, Scrollbar
+
+# Tính năng 1: Đồng hồ và lịch
+def clock():
+    # Tạo cửa sổ chính
+    root = Toplevel()
+    root.title("1. Đồng hồ và lịch")
+    tinh_nang_1 = ttk.Frame(root, padding=20)
+    tinh_nang_1.grid()
+    # Tạo các nhãn cho ngày, giờ và lịch
+    hom_nay = ttk.Label(tinh_nang_1, text="", anchor="center", font=("Helvetica", 16))
+    hom_nay.grid(column=0, row=0, columnspan=2, pady=5)
+    thoi_gian = ttk.Label(tinh_nang_1, text="", anchor="center", font=("Helvetica", 24, "bold"))
+    thoi_gian.grid(column=0, row=1, columnspan=2, pady=5)
+    calendar_label = ttk.Label(tinh_nang_1, text="", anchor="center", justify=LEFT, font=("Courier New", 12))
+    calendar_label.grid(column=0, row=2, columnspan=2, pady=5)
+    def update_clock():
+        # Lấy ngày và giờ hiện tại
+        hom_nay_data = datetime.now().strftime("%d-%m-%Y")
+        thoi_gian_data = datetime.now().strftime("%H:%M:%S")
+        # Cập nhật các nhãn
+        hom_nay.config(text=f"Ngày hôm nay: {hom_nay_data}")
+        thoi_gian.config(text=f"Thời gian: {thoi_gian_data}")
+        root.after(1000, update_clock)
+    # Lấy lịch cả năm
+    text_calendar = calendar.TextCalendar()
+    year = datetime.now().year
+    all_lich = text_calendar.formatyear(year)
+    calendar_label.config(text=f"Lịch năm nay: {all_lich}")
+    # Gọi hàm update_clock ban đầu để hiển thị đồng hồ ngay lập tức
+    update_clock()
+    root.mainloop()
+# Tính năng 2: Máy ảnh
+recording = False
+video_writer = None
+def camera():
+    global recording, video_writer
+    root = Toplevel()
+    root.title("2. Máy ảnh")
+    cap = cv2.VideoCapture(0)
+
+    tinh_nang_2 = ttk.Frame(root, padding=20)
+    tinh_nang_2.grid()
+    label = Label(tinh_nang_2)
+    label.grid(column=0, row=0, columnspan=2, sticky="ew")
+
+    def update_frame():
+        ret, frame = cap.read()
+        if ret:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame)
+            img_tk = ImageTk.PhotoImage(image=img)
+            label.img_tk = img_tk
+            label.config(image=img_tk)
+            if recording and video_writer is not None:
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame_bgr)
+        root.after(10, update_frame)
+
+    def on_closing():
+        cap.release()
+        if video_writer is not None:
+            video_writer.release()
+        root.destroy()
+
+    def chup_anh():
+        ret, frame = cap.read()
+        if ret:
+            filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".jpg"
+            cv2.imwrite(filename, frame)
+            print(f"Ảnh đã được lưu: {filename}")
+
+    def quay_video():
+        global recording, video_writer
+        if not recording:
+            recording = True
+            filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            video_writer = cv2.VideoWriter(filename, fourcc, 20.0, (640, 480))
+            print(f"Bắt đầu quay video: {filename}")
+        else:
+            recording = False
+            if video_writer is not None:
+                video_writer.release()
+                print("Dừng quay video")
+            video_writer = None
+
+    def mo_kho_luu_tru():
+        os.startfile(os.getcwd())
+
+    ttk.Button(tinh_nang_2, text="Chụp ảnh", command=chup_anh).grid(column=0, row=1, columnspan=2, sticky="ew")
+    ttk.Button(tinh_nang_2, text="Quay video", command=quay_video).grid(column=0, row=2, columnspan=2, sticky="ew")
+    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=3, columnspan=2, sticky="ew")
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    update_frame()
+    root.mainloop()
+# Tính năng 3: Gửi thư  
+def gui_thu():
+    SENDER_EMAIL = "ungdungthu3@gmail.com"
+    SENDER_PASSWORD = "dvmq ponq gplj awdq"
+    def send_email():
+        try:
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            email_message = f"Subject: {subject_entry.get()}\n\n{message_text.get('1.0', END)}".encode("utf-8")
+            server.sendmail(SENDER_EMAIL, recipient_entry.get(), email_message)
+            server.quit()
+            messagebox.showinfo("Thành công", "Email đã được gửi!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể gửi email: {e}")
+
+    root = Toplevel()
+    root.title("3.Gửi thư")
+
+    Label(root, text="Người gửi:").grid(row=0, column=0)
+    Label(root, text=SENDER_EMAIL).grid(row=0, column=1)
+
+    Label(root, text="Người nhận:").grid(row=1, column=0)
+    recipient_entry = Entry(root, width=40); recipient_entry.grid(row=1, column=1)
+
+    Label(root, text="Chủ đề:").grid(row=2, column=0)
+    subject_entry = Entry(root, width=40); subject_entry.grid(row=2, column=1)
+
+    Label(root, text="Nội dung:").grid(row=3, column=0)
+    message_text = Text(root, height=10, width=50); message_text.grid(row=3, column=1)
+
+    Button(root, text="Gửi", command=send_email).grid(row=4, column=1)
+    
+    root.mainloop()
+# Tính năng 4: Máy tính
+def may_tinh():
+    root = Toplevel()
+    root.title("4. Máy tính")
+    root.resizable(False, False)
+
+    expression = ""     # Biến này để lưu trữ biểu thức hiện tại
+
+    # Hàm cập nhật ô nhập liệu
+    def update_entry(value):
+        nonlocal expression
+        expression += str(value)
+        entry.delete(0, END)
+        entry.insert(0, expression)
+    # Hàm xóa toàn bộ ô nhập liệu 
+    def clear_entry():
+        nonlocal expression
+        expression = ""
+        entry.delete(0, END)
+    # Hàm tính toán kết quả
+    def calculate_result():
+        nonlocal expression
+        try:
+            # Thay thế các ký hiệu toán học với người dùng thành toán tử Python
+            eval_expression = expression.replace("x", "*").replace(":", "/").replace(",", ".")
+            # Đánh giá biểu thức
+            result = str(eval(eval_expression))
+            entry.delete(0, END)
+            entry.insert(0, result)
+            expression = result # Lưu kết quả để có thể tiếp tục tính toán
+        except Exception as e:
+            # Hiển thị thông báo lỗi
+            messagebox.showerror("Lỗi", "Biểu thức không hợp lệ hoặc lỗi: " + str(e))
+            expression = "" # Đặt lại biểu thức khi có lỗi
+    # Hàm xóa ký tự cuối cùng 
+    def delete_last_char():
+        nonlocal expression
+        expression = expression[:-1] # Cắt bỏ ký tự cuối cùng
+        entry.delete(0, END)
+        entry.insert(0, expression)
+    # Khung chứa các phím
+    tinh_nang_4 = ttk.Frame(root, padding="10 10 10 10")
+    tinh_nang_4.grid(row=0, column=0, sticky=(N, W, E, S))
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
+    # Ô nhập liệu hiển thị biểu thức và kết quả
+    entry = Entry(tinh_nang_4, width=25, font=('Arial', 14), justify='right')
+    entry.grid(row=0, column=0, columnspan=5, pady=10, ipadx=5, ipady=5)
+    # Các nút hàng 1
+    ttk.Button(tinh_nang_4, text="AC", command=clear_entry, width=5).grid(column=0, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="(", command=lambda: update_entry("("), width=5).grid(column=1, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=")", command=lambda: update_entry(")"), width=5).grid(column=2, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=":", command=lambda: update_entry(":"), width=5).grid(column=3, row=1, padx=2, pady=2) 
+    # Các nút hàng 2
+    ttk.Button(tinh_nang_4, text="7", command=lambda: update_entry("7"), width=5).grid(column=0, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="8", command=lambda: update_entry("8"), width=5).grid(column=1, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="9", command=lambda: update_entry("9"), width=5).grid(column=2, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="x", command=lambda: update_entry("x"), width=5).grid(column=3, row=2, padx=2, pady=2) 
+    # Các nút hàng 3
+    ttk.Button(tinh_nang_4, text="4", command=lambda: update_entry("4"), width=5).grid(column=0, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="5", command=lambda: update_entry("5"), width=5).grid(column=1, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="6", command=lambda: update_entry("6"), width=5).grid(column=2, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="-", command=lambda: update_entry("-"), width=5).grid(column=3, row=3, padx=2, pady=2) 
+    # Các nút hàng 4
+    ttk.Button(tinh_nang_4, text="1", command=lambda: update_entry("1"), width=5).grid(column=0, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="2", command=lambda: update_entry("2"), width=5).grid(column=1, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="3", command=lambda: update_entry("3"), width=5).grid(column=2, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="+", command=lambda: update_entry("+"), width=5).grid(column=3, row=4, padx=2, pady=2) 
+    # Các nút hàng 5
+    ttk.Button(tinh_nang_4, text="0", command=lambda: update_entry("0"), width=11).grid(column=0, row=5, columnspan=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=".", command=lambda: update_entry("."), width=5).grid(column=2, row=5, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="=", command=calculate_result, width=5).grid(column=3, row=5, padx=2, pady=2)
+    # Nút xóa ký tự cuối cùng
+    ttk.Button(tinh_nang_4, text="Xóa", command=delete_last_char, width=5).grid(column=4, row=1, padx=2, pady=2)
+    root.mainloop()
+# Tính năng 5: Bàn phím ảo
+def Ban_phim_ao():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 6: Game mini
+def mini_game():
+    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
+# Tính năng 7: Đồng hồ đếm ngược
+def dem_nguoc():
+    def start_countdown():
+        try:
+            seconds = int(entry.get())
+            if seconds < 0:
+                raise ValueError("Thời gian không thể âm.")
+            countdown(seconds)
+        except ValueError as e:
+            messagebox.showerror("Lỗi", f"Vui lòng nhập một số hợp lệ: {e}")
+
+    def countdown(seconds):
+        if seconds >= 0:
+            label.config(text=f"Đếm ngược: {seconds} giây")
+            root.after(1000, countdown, seconds - 1)
+        else:
+            label.config(text="Hết giờ!")
+
+    root = Toplevel()
+    root.title("7. Đồng hồ đếm ngược")
+    root.resizable(False, False)
+    ttk.Label(root, text="Nhập thời gian (giây):").grid(column=0, row=0)
+    entry = ttk.Entry(root); entry.grid(column=1, row=0)
+    ttk.Button(root, text="Bắt đầu", command=start_countdown).grid(column=2, row=0)
+    label = ttk.Label(root, text="Đếm ngược: 0 giây", font=("Helvetica", 16))
+    label.grid(column=0, row=1, columnspan=3)    
+# Tính năng 8: Máy phát nhạc
+pygame.mixer.init()         # Khởi tạo bộ trộn âm thanh của pygame
+current_file = None
+music_list = []
+playing_index = -1
+paused = False
+root = None
+listbox = None
+file_label = None
+play_pause_button = None
+def may_phat_nhac_va_video():
+
+    def load_music_list():      # Tải danh sách nhạc từ tệp JSON
+        global music_list
+        if os.path.exists("music_list.json"):
+            with open("music_list.json", "r", encoding='utf-8') as f:
+                try:
+                    music_list = json.load(f)
+                except json.JSONDecodeError:
+                    music_list = []
+            # Lọc bỏ các đường dẫn không tồn tại để tránh lỗi
+                music_list = [path for path in music_list if os.path.exists(path)]
+
+    def save_music_list():      #Lưu danh sách nhạc hiện tại vào tệp JSON
+        global music_list
+        with open("music_list.json", "w", encoding='utf-8') as f:
+            json.dump(music_list, f, indent=4)
+
+    def update_listbox():       #Cập nhật nội dung của widget listbox.
+        global listbox
+        listbox.delete(0,END)
+        for i, path in enumerate(music_list):
+            listbox.insert(END, f"{i+1}. {os.path.basename(path)}")
+        highlight_playing_song()
+
+    def highlight_playing_song():       # Đánh dấu bài hát đang phát trong listbox.
+        global listbox, playing_index
+        listbox.selection_clear(0,END)
+        if 0 <= playing_index < len(music_list):
+            listbox.selection_set(playing_index)
+            listbox.see(playing_index)
+
+    def add_to_music_list():        # Mở hộp thoại tệp để thêm các tệp nhạc vào danh sách phát.
+        global music_list
+        files_selected = filedialog.askopenfilenames(title="Chọn File Nhạc", filetypes=[("File nhạc (MP3, WAV)", "*.mp3;*.wav"), ("Tất cả", "*.*")])
+        if files_selected:
+            for file_path in files_selected:
+                if file_path not in music_list: # Tránh thêm các bài hát trùng lặp
+                    music_list.append(file_path)
+            update_listbox()
+            save_music_list()
+
+    def remove_selected_from_list(event=None):      # Xóa các bài hát đã chọn khỏi danh sách phát.
+        global music_list, playing_index, current_file, file_label
+        selected_indices = listbox.curselection()
+        if not selected_indices:
+            messagebox.showinfo("Thông báo", "Vui lòng chọn bài hát để xóa.")
+            return
+    # Sắp xếp các chỉ mục để xóa theo thứ tự giảm dần để tránh thay đổi chỉ mục khi xóa
+        indices_to_remove = sorted(list(selected_indices), reverse=True)
+    # Đếm số lượng bài hát bị xóa *trước* bài hát đang phát để điều chỉnh playing_index
+        removed_before_playing_count = 0
+        original_playing_index = playing_index # Lưu chỉ mục gốc để so sánh
+        for idx in indices_to_remove:
+            if idx == original_playing_index: # Nếu bài hát đang phát bị xóa
+                pygame.mixer.music.stop()
+                current_file = None
+                playing_index = -1 # Đặt lại playing_index
+                file_label.config(text="Chưa có file nào được chọn")
+                break # Bài hát đang phát đã được xử lý, không cần kiểm tra thêm
+            if idx < original_playing_index:
+                removed_before_playing_count += 1
+    # Xóa các bài hát khỏi danh sách
+        for index in indices_to_remove:
+            del music_list[index]
+    # Điều chỉnh playing_index sau khi xóa
+        if playing_index != -1: # Nếu vẫn còn bài hát đang phát (tức là không bị xóa)
+            playing_index -= removed_before_playing_count
+    # Đảm bảo playing_index nằm trong giới hạn hợp lệ
+            if playing_index >= len(music_list):
+                playing_index = len(music_list) - 1 if len(music_list) > 0 else -1
+            elif playing_index < 0 and len(music_list) > 0:
+                playing_index = 0 # Đặt lại về bài hát đầu tiên nếu nó trở thành âm và vẫn còn bài hát
+            elif len(music_list) == 0:
+                playing_index = -1
+        update_listbox()
+        save_music_list()
+        highlight_playing_song()
+
+    def play_selected_from_list(event=None):        # Phát bài hát được chọn trong listbox.
+        global playing_index, music_list
+        selected_indices = listbox.curselection()
+        if not selected_indices:
+            return
+        index = selected_indices[0]
+        if 0 <= index < len(music_list):
+            playing_index = index
+            open_file(music_list[index])
+            highlight_playing_song()
+
+    def play_next():        # Phát bài hát tiếp theo trong danh sách phát.
+        global music_list, playing_index
+        if not music_list:
+            messagebox.showinfo("Thông báo", "Danh sách phát trống.")
+            return
+        playing_index = (playing_index + 1) % len(music_list)
+        open_file(music_list[playing_index])
+        highlight_playing_song()
+
+    def play_previous(): #Phát bài hát trước đó trong danh sách phát.
+        global music_list, playing_index
+        if not music_list:
+            messagebox.showinfo("Thông báo", "Danh sách phát trống.")
+            return
+        playing_index = (playing_index - 1 + len(music_list)) % len(music_list)
+        open_file(music_list[playing_index])
+        highlight_playing_song()
+
+    def select_and_open_file():
+        global playing_index
+        file_selected = filedialog.askopenfilenames(
+            title="Chọn file",
+            filetypes=[
+                ("Tất cả file media", "*.mp3;*.wav;*.mp4;*.avi;*.mkv"),
+                ("File nhạc (MP3, WAV)", "*.mp3;*.wav"),
+                ("File video (MP4, AVI, MKV)", "*.mp4;*.avi;*.mkv"),
+                ("Tất cả", "*.*")
+            ]
+        )
+        if file_selected:
+            playing_index = -1
+            open_file(file_selected[0])  
+            highlight_playing_song() 
+
+    def open_file(file_path):       # Mở và phát tệp media đã chỉ định.
+        global current_file, file_label, music_list, playing_index
+        if not os.path.exists(file_path):
+            messagebox.showerror("Lỗi", f"File không tồn tại: {file_path}")
+        # Nếu tệp không tồn tại trong danh sách phát, hãy xóa nó
+            if file_path in music_list:
+                music_list.remove(file_path)
+                update_listbox()
+                save_music_list()
+            current_file = None
+            file_label.config(text="Chưa có file nào được chọn")
+            return
+
+        current_file = file_path
+        file_name = os.path.basename(file_path)
+        file_label.config(text=f"Đang phát: {file_name}")
+
+        try:
+            if file_path.lower().endswith(('.mp3', '.wav')):
+                play_music(file_path)
+            else:
+                pygame.mixer.music.stop()
+            # Sử dụng lệnh dành riêng cho từng hệ điều hành để mở các loại media khác
+                if os.name == 'nt':  # Đối với Windows
+                    os.startfile(file_path)
+                elif os.uname().sysname == 'Darwin':  # Đối với macOS
+                    subprocess.Popen(['open', file_path])
+                else:  # Đối với Linux/Unix
+                    subprocess.Popen(['xdg-open', file_path])
+        except Exception as e:
+            messagebox.showerror("Lỗi mở file", f"Lỗi: {e}")
+            current_file = None
+            file_label.config(text="Chưa có file nào được chọn")
+
+    def play_music(music_path):     # Tải và phát tệp nhạc bằng pygame.mixer.
+        global paused, play_pause_button, current_file, music_list, playing_index, root
+        try:
+            pygame.mixer.music.load(music_path)
+            pygame.mixer.music.play()
+            paused = False
+            play_pause_button.config(text="Tạm Dừng")
+            pygame.mixer.music.set_endevent(pygame.USEREVENT)
+            root.after(100, check_music_end) # Bắt đầu kiểm tra xem bài hát đã kết thúc chưa
+        except pygame.error as e:
+            messagebox.showerror("Lỗi phát nhạc", f"Không thể phát nhạc: {e}")
+            current_file = None
+            file_label.config(text="Chưa có file nào được chọn")
+        # Nếu bài hát có vấn đề là từ danh sách phát, hãy xóa nó
+            if playing_index != -1 and music_list[playing_index] == music_path:
+                del music_list[playing_index]
+                update_listbox()
+                save_music_list()
+                playing_index = -1
+
+    def check_music_end():      # Kiểm tra xem nhạc hiện tại đã kết thúc chưa và phát bài hát tiếp theo nếu có.
+        global playing_index, music_list, current_file, file_label, root
+
+        for event in pygame.event.get():
+            if event.type == pygame.USEREVENT:
+                if playing_index != -1 and playing_index < len(music_list) - 1:
+                    play_next()
+                else:
+                # Kết thúc danh sách phát hoặc phát một bài hát duy nhất
+                    pygame.mixer.music.stop()
+                    current_file = None
+                    file_label.config(text="Đã phát hết danh sách")
+                    playing_index = -1
+                    highlight_playing_song()
+                return # Đã xử lý sự kiện, dừng kiểm tra trong lần lặp này
+
+    # Tiếp tục kiểm tra chỉ khi nhạc đang bận hoặc tạm dừng
+        if pygame.mixer.music.get_busy() or pygame.mixer.music.get_paused():
+            root.after(100, check_music_end)
+
+    def toggle_play_pause():        # Chuyển đổi trạng thái phát/tạm dừng của nhạc hiện tại.
+        global current_file, music_list, playing_index, paused, play_pause_button
+        if not current_file:
+            if music_list:
+                playing_index = 0
+                open_file(music_list[playing_index])
+                highlight_playing_song()
+            else:
+                messagebox.showinfo("Thông báo", "Vui lòng chọn một file nhạc trước.")
+            return
+        if paused:
+            pygame.mixer.music.unpause()
+            play_pause_button.config(text="Tạm Dừng")
+            paused = False
+        else:
+            pygame.mixer.music.pause()
+            play_pause_button.config(text="Tiếp Tục")
+            paused = True
+
+    def on_closing():       # Xử lý sự kiện đóng cửa sổ, lưu danh sách phát và dừng nhạc.
+        global root
+        save_music_list()
+        pygame.mixer.music.stop()
+        root.destroy()
+
+    global root, listbox, file_label, play_pause_button
+
+    root = Toplevel()
+    root.title("8. Phát nhạc và video")
+    tinh_nang_8 = ttk.Frame(root, padding=10)
+    tinh_nang_8.grid(row=0, column=0, sticky="nsew")
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    load_music_list()
+
+    # --- Các phần tử giao diện người dùng ---
+
+    # Nhãn tệp hiện tại
+    file_label = Label(tinh_nang_8, text="Chưa có file nào được chọn", anchor="w")
+    file_label.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 10))
+
+    # Khung nút
+    button_frame = ttk.Frame(tinh_nang_8)
+    button_frame.grid(row=1, column=0, columnspan=4, pady=(0, 10))
+    # Cấu hình các cột trong button_frame để mở rộng đều
+    button_frame.grid_columnconfigure(0, weight=1)
+    button_frame.grid_columnconfigure(1, weight=1)
+    button_frame.grid_columnconfigure(2, weight=1)
+    button_frame.grid_columnconfigure(3, weight=1)
+
+    play_pause_button = ttk.Button(button_frame, text="Phát", command=toggle_play_pause)
+    play_pause_button.grid(row=0, column=0, padx=5, sticky="ew")
+
+    prev_button = ttk.Button(button_frame, text="Bài Trước", command=play_previous)
+    prev_button.grid(row=0, column=1, padx=5, sticky="ew")
+
+    next_button = ttk.Button(button_frame, text="Bài Kế", command=play_next)
+    next_button.grid(row=0, column=2, padx=5, sticky="ew")
+
+    open_file_button = ttk.Button(button_frame, text="Mở File", command=select_and_open_file)
+    open_file_button.grid(row=0, column=3, padx=5, sticky="ew")
+
+    # Nhãn danh sách phát
+    playlist_label = ttk.Label(tinh_nang_8, text="Danh sách phát:", anchor="w")
+    playlist_label.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(10, 5))
+
+    # Listbox cho danh sách nhạc
+    listbox_frame = ttk.Frame(tinh_nang_8)
+    listbox_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
+    tinh_nang_8.grid_rowconfigure(3, weight=1)
+    tinh_nang_8.grid_columnconfigure(0, weight=1) # Đảm bảo khung listbox mở rộng
+
+    listbox = Listbox(listbox_frame, selectmode="extended")
+    listbox.pack(side="left", fill="both", expand=True)
+
+    scrollbar = Scrollbar(listbox_frame, orient="vertical", command=listbox.yview)
+    scrollbar.pack(side="right", fill="y")
+    listbox.config(yscrollcommand=scrollbar.set)
+
+    # Ràng buộc double click để phát bài hát đã chọn
+    listbox.bind("<Double-Button-1>", play_selected_from_list)
+
+    # Các nút điều khiển danh sách phát
+    playlist_button_frame = ttk.Frame(tinh_nang_8)
+    playlist_button_frame.grid(row=4, column=0, columnspan=4, pady=(10, 0))
+    # Cấu hình các cột trong playlist_button_frame
+    playlist_button_frame.grid_columnconfigure(0, weight=1)
+    playlist_button_frame.grid_columnconfigure(1, weight=1)
+
+
+    add_to_list_button = ttk.Button(playlist_button_frame, text="Thêm vào DS", command=add_to_music_list)
+    add_to_list_button.grid(row=0, column=0, padx=5, sticky="ew")
+
+    remove_from_list_button = ttk.Button(playlist_button_frame, text="Xóa khỏi DS", command=remove_selected_from_list)
+    remove_from_list_button.grid(row=0, column=1, padx=5, sticky="ew")
+
+    # Cập nhật listbox ban đầu
+    update_listbox()
+
+    # Giao thức đóng cửa sổ
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    root.mainloop()
+
