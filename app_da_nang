@@ -9,12 +9,18 @@ import pygame
 import subprocess
 import json
 import wikipedia
+import configparser
+from unidecode import unidecode
 from tkinter import *
 from datetime import datetime
 from PIL import Image, ImageTk
 from tkinter.scrolledtext import ScrolledText
-from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog, colorchooser, simpledialog, filedialog, Listbox, Scrollbar
-
+from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog, colorchooser, simpledialog, filedialog, Listbox, Scrollbar, WORD, END, scrolledtext
+import speech_recognition as sr
+import librosa
+import soundfile as sf
+import threading
+from tqdm import tqdm 
 # Tính năng 1: Đồng hồ và lịch
 def clock():
     # Tạo cửa sổ chính
@@ -219,10 +225,151 @@ def may_tinh():
     # Nút xóa ký tự cuối cùng
     ttk.Button(tinh_nang_4, text="Xóa", command=delete_last_char, width=5).grid(column=4, row=1, padx=2, pady=2)
     root.mainloop()
-# Tính năng 5: Bàn phím ảo
-def Ban_phim_ao():
-    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
-# Tính năng 6: Game mini
+# Tính năng 5: Chuyển âm thanh thành văn bản
+def chuyen_am_thanh_thanh_van_ban():
+    def update_progress(message):
+        text_area.delete(1.0, END)
+        text_area.insert(END, message + "\n")
+        text_area.update_idletasks() # Đảm bảo giao diện người dùng cập nhật ngay lập tức
+
+    def convert_audio_to_text(file_path=None, language="vi-VN", use_microphone=False):
+        """
+        Chuyển đổi một file âm thanh (MP3) hoặc giọng nói trực tiếp từ micro
+        thành văn bản. Hiển thị tiến trình và xử lý lỗi.
+
+        Args:
+            file_path (str, optional): Đường dẫn đến file MP3. Bắt buộc nếu use_microphone là False.
+            language (str, optional): Mã ngôn ngữ cho nhận dạng giọng nói (ví dụ: "vi-VN", "en-US").
+            use_microphone (bool, optional): Nếu True, sử dụng micro để nhập; ngược lại, sử dụng file_path.
+        """
+        recognizer = sr.Recognizer()
+
+        try:
+            update_progress("Đang xử lý âm thanh...")
+
+            if use_microphone:
+                with sr.Microphone() as source:
+                    update_progress("Nói vào micro...")
+                    # Điều chỉnh tiếng ồn xung quanh trước khi lắng nghe
+                    recognizer.adjust_for_ambient_noise(source)
+                    # Lắng nghe đầu vào âm thanh từ micro
+                    recorded_data = recognizer.listen(source)
+            else:
+                if not file_path:
+                    update_progress("Lỗi: Không có đường dẫn file MP3.")
+                    return
+
+                update_progress("Đang tải file MP3 và chuyển đổi...")
+                # Tải MP3 bằng librosa, giữ nguyên tốc độ mẫu gốc
+                y, sr_rate = librosa.load(file_path, sr=None)
+                # Ghi vào một file WAV tạm thời vì SpeechRecognition hoạt động tốt nhất với WAV
+                sf.write("temp_audio.wav", y, sr_rate)
+
+                # Mô phỏng thanh tiến trình cho quá trình xử lý file
+                for i in range(1, 11): # Từ 10% đến 100%
+                    update_progress(f"Tiến trình tải và xử lý: {i * 10}%")
+                    time.sleep(0.1) # Tạm dừng nhỏ để hiển thị cập nhật tiến trình
+
+                with sr.AudioFile("temp_audio.wav") as source:
+                    # Ghi lại toàn bộ file âm thanh
+                    recorded_data = recognizer.record(source)
+
+            update_progress("Đang nhận dạng giọng nói... (Quá trình này có thể mất một chút thời gian)")
+            # Sử dụng API Google Web Speech để nhận dạng
+            text = recognizer.recognize_google(recorded_data, language=language)
+
+            update_progress("Hoàn tất! Dưới đây là văn bản:")
+            text_area.insert(END, f"\n{text}\n")
+        except sr.UnknownValueError:
+            update_progress("Không thể nhận dạng giọng nói. Vui lòng thử lại.")
+        except sr.RequestError as e:
+            update_progress(f"Không thể kết nối với dịch vụ nhận dạng giọng nói; {e}")
+        except FileNotFoundError:
+            update_progress("Lỗi: Không tìm thấy file âm thanh.")
+        except Exception as e:
+            # Bắt bất kỳ lỗi không mong muốn nào khác
+            update_progress(f"Lỗi: {e}")
+
+    def select_mp3_file(language="vi-VN"):
+        """
+        Mở hộp thoại file để chọn file MP3 và sau đó
+        bắt đầu một luồng mới để chuyển đổi nó thành văn bản.
+
+        Args:
+            language (str): Mã ngôn ngữ cho nhận dạng giọng nói.
+        """
+        # Yêu cầu người dùng chọn một file MP3
+        file_path = filedialog.askopenfilename(
+            title="Chọn file MP3",
+            filetypes=[("MP3 files", "*.mp3"), ("Tất cả file", "*.*")]
+        )
+        if file_path:
+            # Chạy quá trình chuyển đổi trong một luồng riêng biệt để giữ cho GUI phản hồi
+            threading.Thread(target=convert_audio_to_text,
+                             args=(file_path, language, False)).start()
+
+    def start_microphone_recognition(language="vi-VN"):
+        """
+        Bắt đầu một luồng mới để nhận dạng giọng nói từ micro.
+
+        Args:
+            language (str): Mã ngôn ngữ cho nhận dạng giọng nói.
+        """
+        # Chạy nhận dạng micro trong một luồng riêng biệt
+        threading.Thread(target=convert_audio_to_text,
+                         args=(None, language, True)).start()
+
+    # Thiết lập cửa sổ Tkinter chính
+    root = Toplevel()
+    root.title("Chuyển âm thanh thành văn bản")
+    root.geometry("700x500") # Cửa sổ lớn hơn một chút
+
+    # Cấu hình lưới để đáp ứng
+    root.grid_rowconfigure(2, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_columnconfigure(1, weight=1)
+
+    # Khung chứa các nút
+    button_frame = Frame(root, padx=10, pady=10)
+    button_frame.grid(row=0, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
+    button_frame.grid_columnconfigure(0, weight=1)
+    button_frame.grid_columnconfigure(1, weight=1)
+    button_frame.grid_columnconfigure(2, weight=1)
+    button_frame.grid_columnconfigure(3, weight=1)
+
+
+    # Các nút để chọn file MP3 (tiếng Việt và tiếng Anh)
+    select_button_vi = Button(button_frame, text="Chọn File MP3 (Tiếng Việt)",
+                              command=lambda: select_mp3_file("vi-VN"),
+                              font=("Arial", 10), relief="raised") # Đã xóa thuộc tính màu
+    select_button_vi.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+    select_button_en = Button(button_frame, text="Chọn File MP3 (Tiếng Anh)",
+                              command=lambda: select_mp3_file("en-US"),
+                              font=("Arial", 10), relief="raised") # Đã xóa thuộc tính màu
+    select_button_en.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+    # Các nút để nhập từ Micro (tiếng Việt và tiếng Anh)
+    mic_button_vi = Button(button_frame, text="Nhận dạng Micro (Tiếng Việt)",
+                           command=lambda: start_microphone_recognition("vi-VN"),
+                           font=("Arial", 10), relief="raised") # Đã xóa thuộc tính màu
+    mic_button_vi.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+
+    mic_button_en = Button(button_frame, text="Nhận dạng Micro (Tiếng Anh)",
+                           command=lambda: start_microphone_recognition("en-US"),
+                           font=("Arial", 10), relief="raised") # Đã xóa thuộc tính màu
+    mic_button_en.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+    # Widget ScrolledText để hiển thị kết quả và tiến trình
+    text_area = scrolledtext.ScrolledText(root, wrap=WORD, width=70, height=15,
+                                          font=("Arial", 12), bg="#F8F8F8", fg="#333333",
+                                          relief="sunken", borderwidth=2)
+    text_area.grid(row=2, column=0, padx=10, pady=10, columnspan=2, sticky="nsew")
+    text_area.insert(END, "Chào mừng! Nhấn một trong các nút trên để bắt đầu chuyển đổi âm thanh thành văn bản.\n")
+
+    # Bắt đầu vòng lặp sự kiện Tkinter
+    root.mainloop()
+# Tính năng 6: Tìm kiếm thông tin
 def tim_kiem_thong_tin():
     wikipedia.set_lang("vi")
     def lay_thong_tin():
@@ -269,7 +416,6 @@ def tim_kiem_thong_tin():
     o_ket_qua = ScrolledText(cua_so, wrap=WORD, width=70, height=15)
     o_ket_qua.grid(row=2, column=0, padx=10, pady=10, sticky="nsew") 
     cua_so.mainloop()
-
 # Tính năng 7: Đồng hồ đếm ngược
 def dem_nguoc():
     def start_countdown():
@@ -297,7 +443,7 @@ def dem_nguoc():
     label = ttk.Label(root, text="Đếm ngược: 0 giây", font=("Helvetica", 16))
     label.grid(column=0, row=1, columnspan=3)    
 # Tính năng 8: Máy phát nhạc
-pygame.mixer.init()         # Khởi tạo bộ trộn âm thanh của pygame
+pygame.mixer.init() 
 current_file = None
 music_list = []
 playing_index = -1
@@ -634,38 +780,131 @@ def van_ban():
     ttk.Button(root, text="Mở tệp", command=open_file).pack(side=LEFT, padx=5, pady=5)
     root.mainloop()
 # Tính năng 10: Thời tiết 
+CONFIG_FILE = "config.ini"
+VALID_CITIES_FILE = "valid_cities.txt"
 def thoi_tiet():
-    API_KEY_FILE = "openweathermap_api_key.txt"
+    def save_api_key(api_key):
+        config = configparser.ConfigParser()
+        config['Settings'] = {'API_Key': api_key}
+        try:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as configfile:
+                config.write(configfile)
+        except Exception as e:
+            messagebox.showerror("Lỗi lưu", f"Không thể lưu mã API: {e}")
 
-    PROVINCES = ["Hà Nội", "Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ", "An Giang", "Bà Rịa - Vũng Tàu", "Bạc Liêu",
-    "Bắc Kạn", "Bắc Giang", "Bắc Ninh", "Bến Tre", "Bình Dương", "Bình Định", "Bình Phước", "Bình Thuận",
-    "Cà Mau", "Cao Bằng", "Đắk Lắk", "Đắk Nông", "Điện Biên", "Đồng Nai", "Đồng Tháp", "Gia Lai", "Hà Giang",
-    "Hà Nam", "Hà Tĩnh", "Hậu Giang", "Hòa Bình", "Hưng Yên", "Khánh Hòa", "Kiên Giang", "Kon Tum",
-    "Lai Châu", "Lâm Đồng", "Lạng Sơn", "Lào Cai", "Long An", "Nam Định", "Nghệ An", "Ninh Bình",
-    "Ninh Thuận", "Phú Thọ", "Phú Yên", "Quảng Bình", "Quảng Nam", "Quảng Ngãi", "Quảng Ninh",
-    "Quảng Trị", "Sóc Trăng", "Sơn La", "Tây Ninh", "Thái Bình", "Thái Nguyên", "Thanh Hóa",
-    "Thừa Thiên Huế", "Tiền Giang", "Trà Vinh", "Tuyên Quang", "Vĩnh Long", "Vĩnh Phúc", "Yên Bái"]
+    def load_api_key():
+        config = configparser.ConfigParser()
+        if os.path.exists(CONFIG_FILE):
+            config.read(CONFIG_FILE, encoding='utf-8')
+            return config.get('Settings', 'API_Key', fallback="")
+        return ""
 
-    def get_api_key():
-
-        if os.path.exists(API_KEY_FILE):
-            with open(API_KEY_FILE, "r", encoding="utf-8") as f:
-                return f.read().strip()
-
-    # Nếu file không tồn tại, yêu cầu người dùng nhập khóa API
-        api_key = simpledialog.askstring("Nhập Khóa API", "Vui lòng nhập khóa API OpenWeatherMap của bạn:", parent=root)
-        if api_key:
-            with open(API_KEY_FILE, "w", encoding="utf-8") as f:
-                f.write(api_key)
-            return api_key
+    def save_valid_city(city):
+        """Lưu tên thành phố vào file nếu chưa tồn tại."""
+        if not os.path.exists(VALID_CITIES_FILE):
+            with open(VALID_CITIES_FILE, 'w', encoding='utf-8') as file:
+                file.write(f"{city}\n")
         else:
-            messagebox.showwarning("Cảnh báo", "Bạn chưa nhập khóa API. Ứng dụng sẽ không thể lấy dữ liệu thời tiết.")
-            return None
+            with open(VALID_CITIES_FILE, 'r+', encoding='utf-8') as file:
+                cities = file.read().splitlines()
+                if city not in cities:
+                    file.write(f"{city}\n")
+                    city_listbox.insert(END, city)  # Thêm vào danh sách hiển thị
 
+    def load_valid_cities():
+        """Tải danh sách các tỉnh/thành phố đã nhập đúng."""
+        if os.path.exists(VALID_CITIES_FILE):
+            with open(VALID_CITIES_FILE, 'r', encoding='utf-8') as file:
+                return file.read().splitlines()
+        return []
 
+    def get_weather_data():
+        city = city_entry.get().strip()
+        api_key = api_key_entry.get().strip()
 
+        if not city:
+            messagebox.showwarning("Lỗi", "Vui lòng nhập tên thành phố.")
+            return
 
+        if not api_key:
+            messagebox.showwarning("Lỗi", "Vui lòng nhập mã API của bạn.")
+            return
+        
+        save_api_key(api_key)
 
+        city = unidecode(city)
+
+        ow_url = "http://api.openweathermap.org/data/2.5/weather?"
+        call_url = f"{ow_url}appid={api_key}&q={city}&units=metric"
+
+        try:
+            response = requests.get(call_url)
+            data = response.json()
+
+            if data["cod"] == 200:
+                save_valid_city(city)  # Lưu thành phố hợp lệ vào danh sách
+
+                weather_info = f"""
+🌡️ Nhiệt độ: {data['main']['temp']}°C
+🌬️ Áp suất: {data['main']['pressure']} hPa
+💦 Độ ẩm: {data['main']['humidity']}%
+☁️ Thời tiết: {data['weather'][0]['description'].capitalize()}
+"""
+                result_label.config(text=weather_info)
+            else:
+                result_label.config(text="Không tìm thấy địa chỉ.")
+                messagebox.showerror("Lỗi", "Không tìm thấy thành phố, vui lòng kiểm tra lại.")
+
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Lỗi mạng", "Không thể kết nối đến dịch vụ thời tiết, kiểm tra internet của bạn.")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
+
+    def select_city_from_list(event):
+        """Cho phép chọn thành phố từ danh sách bên trái."""
+        selected_city = city_listbox.get(city_listbox.curselection())
+        city_entry.delete(0, END)
+        city_entry.insert(0, selected_city)
+
+    root = Tk()
+    root.title("Ứng dụng thời tiết")
+    root.geometry("500x300")
+
+    # --- Giao diện ---
+    left_frame = Frame(root)
+    left_frame.pack(side=LEFT, padx=5, pady=5)
+
+    Label(left_frame, text="Danh sách tỉnh/thành phố:", font=("Arial", 12)).pack()
+
+    city_listbox = Listbox(left_frame, height=10, width=25)
+    city_listbox.pack(pady=5)
+
+    for city in load_valid_cities():
+        city_listbox.insert(END, city)
+
+    city_listbox.bind("<<ListboxSelect>>", select_city_from_list)
+
+    right_frame = Frame(root)
+    right_frame.pack(side=RIGHT, padx=10, pady=10)
+
+    Label(right_frame, text="Nhập mã API:", font=("Arial", 12)).pack(pady=5)
+    api_key_entry = Entry(right_frame, width=35, font=("Arial", 12), show="*")
+    api_key_entry.pack(pady=5)
+
+    saved_api_key = load_api_key()
+    if saved_api_key:
+        api_key_entry.insert(0, saved_api_key)
+
+    Label(right_frame, text="Nhập tên thành phố:", font=("Arial", 12)).pack(pady=5)
+    city_entry = Entry(right_frame, width=35, font=("Arial", 12))
+    city_entry.pack(pady=5)
+
+    Button(right_frame, text="Xem thời tiết", command=get_weather_data, font=("Arial", 12)).pack(pady=10)
+
+    result_label = Label(right_frame, text="Thông tin thời tiết sẽ hiển thị tại đây.", font=("Arial", 10))
+    result_label.pack(pady=10)
+
+    root.mainloop()
 # Tính năng 11: Thay đổi giao diện người dùng
 def giao_dien():
     root= None
@@ -737,7 +976,7 @@ ttk.Button(frm, text="1.Đồng hồ và lịch", command=clock).grid(column=0, 
 ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
-ttk.Button(frm, text="5.Bàn phím ảo", command=Ban_phim_ao).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="5.Chuyển âm thanh thành văn bản", command=chuyen_am_thanh_thanh_van_ban).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="6.Tìm kiếm thông tin ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="8. Máy phát nhạc và video ", command=may_phat_nhac_va_video).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
