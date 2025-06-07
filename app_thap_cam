@@ -105,9 +105,9 @@ def camera():
     update_frame()
     root.mainloop()
 # Tính năng 3: Gửi thư  
-SENDER_EMAIL = "ungdungthu3@gmail.com"
-SENDER_PASSWORD = "dvmq ponq gplj awdq"
 def gui_thu():
+    SENDER_EMAIL = "ungdungthu3@gmail.com"
+    SENDER_PASSWORD = "dvmq ponq gplj awdq"
     def send_email():
         try:
             server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -141,38 +141,78 @@ def gui_thu():
 # Tính năng 4: Máy tính
 def may_tinh():
     root = Toplevel()
-    root.title("4.Máy tính")
-    tinh_nang_4 = ttk.Frame(root, padding=10)
-    tinh_nang_4.grid()
+    root.title("4. Máy tính")
+    root.resizable(False, False)
 
-    entry = Entry(root, width=20); entry.pack()
+    expression = ""     # Biến này để lưu trữ biểu thức hiện tại
 
-    ttk.Button(tinh_nang_4, text="%", command=lambda: entry.insert(END, "1") ).grid(column=1, row=1, columnspan=2)
-    ttk.Button(tinh_nang_4, text="+", command=lambda: entry.insert(END, "1")).grid(column=1, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text="-", command=lambda: entry.insert(END, "1")).grid(column=2, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text="x", command=lambda: entry.insert(END, "1")).grid(column=3, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text=":", command=lambda: entry.insert(END, "1")).grid(column=4, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text="0", command=lambda: entry.insert(END, "1")).grid(column=6, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text="1", command=lambda: entry.insert(END, "1")).grid(column=5, row=1, columnspan=2)
-    ttk.Button(tinh_nang_4, text="2", command=lambda: entry.insert(END, "1")).grid(column=5, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text="3", command=lambda: entry.insert(END, "1")).grid(column=5, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="4", command=lambda: entry.insert(END, "1")).grid(column=4, row=1, columnspan=2)
-    ttk.Button(tinh_nang_4, text="5", command=lambda: entry.insert(END, "1")).grid(column=4, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text="6", command=lambda: entry.insert(END, "1")).grid(column=4, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="7", command=lambda: entry.insert(END, "1")).grid(column=3, row=1, columnspan=2)
-    ttk.Button(tinh_nang_4, text="8", command=lambda: entry.insert(END, "1")).grid(column=3, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text="9", command=lambda: entry.insert(END, "1")).grid(column=3, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="=", command=lambda: entry.insert(END, "1")).grid(column=5, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text="(", command=lambda: entry.insert(END, "1")).grid(column=1, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text=")", command=lambda: entry.insert(END, "1")).grid(column=1, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="^", command=lambda: entry.insert(END, "1")).grid(column=2, row=2, columnspan=2)
-    ttk.Button(tinh_nang_4, text=",", command=lambda: entry.insert(END, "1")).grid(column=6, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="xóa", command=lambda: entry.insert(END, "1")).grid(column=2, row=3, columnspan=2)
-    ttk.Button(tinh_nang_4, text="=", command=lambda: entry.insert(END, "1")).grid(column=5, row=4, columnspan=2)
-    ttk.Button(tinh_nang_4, text="**(căn)", command=lambda: entry.insert(END, "1")).grid(column=2, row=1, columnspan=2)
+    # Hàm cập nhật ô nhập liệu
+    def update_entry(value):
+        nonlocal expression
+        expression += str(value)
+        entry.delete(0, END)
+        entry.insert(0, expression)
+    # Hàm xóa toàn bộ ô nhập liệu 
+    def clear_entry():
+        nonlocal expression
+        expression = ""
+        entry.delete(0, END)
+    # Hàm tính toán kết quả
+    def calculate_result():
+        nonlocal expression
+        try:
+            # Thay thế các ký hiệu toán học với người dùng thành toán tử Python
+            eval_expression = expression.replace("x", "*").replace(":", "/").replace(",", ".")
+            # Đánh giá biểu thức
+            result = str(eval(eval_expression))
+            entry.delete(0, END)
+            entry.insert(0, result)
+            expression = result # Lưu kết quả để có thể tiếp tục tính toán
+        except Exception as e:
+            # Hiển thị thông báo lỗi
+            messagebox.showerror("Lỗi", "Biểu thức không hợp lệ hoặc lỗi: " + str(e))
+            expression = "" # Đặt lại biểu thức khi có lỗi
+    # Hàm xóa ký tự cuối cùng 
+    def delete_last_char():
+        nonlocal expression
+        expression = expression[:-1] # Cắt bỏ ký tự cuối cùng
+        entry.delete(0, END)
+        entry.insert(0, expression)
+    # Khung chứa các phím
+    tinh_nang_4 = ttk.Frame(root, padding="10 10 10 10")
+    tinh_nang_4.grid(row=0, column=0, sticky=(N, W, E, S))
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
+    # Ô nhập liệu hiển thị biểu thức và kết quả
+    entry = Entry(tinh_nang_4, width=25, font=('Arial', 14), justify='right')
+    entry.grid(row=0, column=0, columnspan=5, pady=10, ipadx=5, ipady=5)
+    # Các nút hàng 1
+    ttk.Button(tinh_nang_4, text="AC", command=clear_entry, width=5).grid(column=0, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="(", command=lambda: update_entry("("), width=5).grid(column=1, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=")", command=lambda: update_entry(")"), width=5).grid(column=2, row=1, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=":", command=lambda: update_entry(":"), width=5).grid(column=3, row=1, padx=2, pady=2) 
+    # Các nút hàng 2
+    ttk.Button(tinh_nang_4, text="7", command=lambda: update_entry("7"), width=5).grid(column=0, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="8", command=lambda: update_entry("8"), width=5).grid(column=1, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="9", command=lambda: update_entry("9"), width=5).grid(column=2, row=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="x", command=lambda: update_entry("x"), width=5).grid(column=3, row=2, padx=2, pady=2) 
+    # Các nút hàng 3
+    ttk.Button(tinh_nang_4, text="4", command=lambda: update_entry("4"), width=5).grid(column=0, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="5", command=lambda: update_entry("5"), width=5).grid(column=1, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="6", command=lambda: update_entry("6"), width=5).grid(column=2, row=3, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="-", command=lambda: update_entry("-"), width=5).grid(column=3, row=3, padx=2, pady=2) 
+    # Các nút hàng 4
+    ttk.Button(tinh_nang_4, text="1", command=lambda: update_entry("1"), width=5).grid(column=0, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="2", command=lambda: update_entry("2"), width=5).grid(column=1, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="3", command=lambda: update_entry("3"), width=5).grid(column=2, row=4, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="+", command=lambda: update_entry("+"), width=5).grid(column=3, row=4, padx=2, pady=2) 
+    # Các nút hàng 5
+    ttk.Button(tinh_nang_4, text="0", command=lambda: update_entry("0"), width=11).grid(column=0, row=5, columnspan=2, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text=".", command=lambda: update_entry("."), width=5).grid(column=2, row=5, padx=2, pady=2)
+    ttk.Button(tinh_nang_4, text="=", command=calculate_result, width=5).grid(column=3, row=5, padx=2, pady=2)
+    # Nút xóa ký tự cuối cùng
+    ttk.Button(tinh_nang_4, text="Xóa", command=delete_last_char, width=5).grid(column=4, row=1, padx=2, pady=2)
     root.mainloop()
-
-
 # Tính năng 5: Bàn phím ảo
 def Ban_phim_ao():
     messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
