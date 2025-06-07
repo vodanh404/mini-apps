@@ -4,7 +4,7 @@ import time
 import calendar
 from datetime import datetime
 from tkinter import *
-from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog
+from tkinter import Tk, ttk, LEFT, W, E, N, S, messagebox, filedialog, colorchooser
 import cv2
 from PIL import Image, ImageTk
 import smtplib
@@ -140,9 +140,41 @@ def gui_thu():
     root.mainloop()
 # Tính năng 4: Máy tính
 def may_tinh():
-    messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
-# Tính năng 5: Thời tiết
-def thoi_tiet():
+    root = Toplevel()
+    root.title("4.Máy tính")
+    tinh_nang_4 = ttk.Frame(root, padding=10)
+    tinh_nang_4.grid()
+
+    entry = Entry(root, width=20); entry.pack()
+
+    ttk.Button(tinh_nang_4, text="%", command=lambda: entry.insert(END, "1") ).grid(column=1, row=1, columnspan=2)
+    ttk.Button(tinh_nang_4, text="+", command=lambda: entry.insert(END, "1")).grid(column=1, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text="-", command=lambda: entry.insert(END, "1")).grid(column=2, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text="x", command=lambda: entry.insert(END, "1")).grid(column=3, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text=":", command=lambda: entry.insert(END, "1")).grid(column=4, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text="0", command=lambda: entry.insert(END, "1")).grid(column=6, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text="1", command=lambda: entry.insert(END, "1")).grid(column=5, row=1, columnspan=2)
+    ttk.Button(tinh_nang_4, text="2", command=lambda: entry.insert(END, "1")).grid(column=5, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text="3", command=lambda: entry.insert(END, "1")).grid(column=5, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="4", command=lambda: entry.insert(END, "1")).grid(column=4, row=1, columnspan=2)
+    ttk.Button(tinh_nang_4, text="5", command=lambda: entry.insert(END, "1")).grid(column=4, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text="6", command=lambda: entry.insert(END, "1")).grid(column=4, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="7", command=lambda: entry.insert(END, "1")).grid(column=3, row=1, columnspan=2)
+    ttk.Button(tinh_nang_4, text="8", command=lambda: entry.insert(END, "1")).grid(column=3, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text="9", command=lambda: entry.insert(END, "1")).grid(column=3, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="=", command=lambda: entry.insert(END, "1")).grid(column=5, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text="(", command=lambda: entry.insert(END, "1")).grid(column=1, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text=")", command=lambda: entry.insert(END, "1")).grid(column=1, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="^", command=lambda: entry.insert(END, "1")).grid(column=2, row=2, columnspan=2)
+    ttk.Button(tinh_nang_4, text=",", command=lambda: entry.insert(END, "1")).grid(column=6, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="xóa", command=lambda: entry.insert(END, "1")).grid(column=2, row=3, columnspan=2)
+    ttk.Button(tinh_nang_4, text="=", command=lambda: entry.insert(END, "1")).grid(column=5, row=4, columnspan=2)
+    ttk.Button(tinh_nang_4, text="**(căn)", command=lambda: entry.insert(END, "1")).grid(column=2, row=1, columnspan=2)
+    root.mainloop()
+
+
+# Tính năng 5: Bàn phím ảo
+def Ban_phim_ao():
     messagebox.showinfo("Thông báo", "Tính năng này chưa được triển khai.")
 # Tính năng 6: Game mini
 def mini_game():
@@ -201,50 +233,83 @@ def van_ban():
     root.mainloop()
 # Tính năng 10: Thay đổi giao diện người dùng
 def giao_dien():
-    def change_theme():
-        selected_theme = theme_var.get()
-        if selected_theme == "Dark":
-            root.tk_setPalette(background="#2E2E2E", foreground="#FFFFFF")
-        elif selected_theme == "Light":
-            root.tk_setPalette(background="#FFFFFF", foreground="#000000")
-        else:
-            root.tk_setPalette(background="#F0F0F0", foreground="#000000")
+    root= None
+    def ap_dung_chu_de(background_color, foreground_color):
+        global root
+        if root:
+            root.configure(bg=background_color)
+            style = ttk.Style()
+            style.configure(".", background=background_color, foreground=foreground_color, font=('Arial', 10), relief="raised", padding=8, borderwidth=2)
+    def chon_mau():
+        color_code = colorchooser.askcolor(title="Chọn màu nền tùy chỉnh")
+        if color_code[1]:
+            ap_dung_chu_de(color_code[1], "black")  # Mặc định chữ đen
+
 
     root = Toplevel()
-    root.title("10. Thay đổi giao diện người dùng")
-    theme_var = StringVar(value="Light")
-    ttk.Label(root, text="Chọn giao diện:").pack(pady=10)
-    ttk.Radiobutton(root, text="Dark", variable=theme_var, value="Dark", command=change_theme).pack(anchor=W)
-    ttk.Radiobutton(root, text="Light", variable=theme_var, value="Light", command=change_theme).pack(anchor=W)
-    ttk.Radiobutton(root, text="Default", variable=theme_var, value="Default", command=change_theme).pack(anchor=W)
-# Tính năng 11: Đôi lời của nhà sản xuất
+    root.title("10. Thay đổi giao diện người dùngdùng")
+    tinh_nang_10 = ttk.Frame(root, padding=15)
+    tinh_nang_10.grid()
+    ttk.Label(tinh_nang_10, text="Chọn Màu Giao diện:", font=('Arial', 14, 'bold')).grid(row=0, column=0, pady=10)
+    ttk.Button(tinh_nang_10, text="Màu Tùy Chỉnh", command=chon_mau).grid(row=1, column=0, sticky="ew", pady=5)
+    root.mainloop()
+# Tính năng 11: Bảng tuần hoàn hóa học
+def bang_tuan_hoan():
+    root = Toplevel()
+    root.title("11. Bảng tuần hoàn hóa học")
+    # Tạo khung giao diện
+    tinh_nang_11 = ttk.Frame(root, padding=10)
+    tinh_nang_11.grid()
+    try:
+        image = Image.open(r"D:\file cũ\data\bang_tuan_hoan.jpg")  # Đường dẫn tuyệt đối
+        image = image.resize((800, 442))  # Không cần ANTIALIAS với phiên bản Pillow mới
+        photo = ImageTk.PhotoImage(image)
+    except Exception as e:
+        print("Lỗi khi mở hình ảnh:", e)
+        return
+
+    # Tạo nhãn và hiển thị hình ảnh
+    label = ttk.Label(tinh_nang_11, image=photo)
+    label.image = photo  # Giữ tham chiếu để tránh ảnh biến mất
+    label.grid(row=0, column=0)
+
+    # Chạy vòng lặp chính
+    root.mainloop()
+# Tính năng 12: Đôi lời của nhà sản xuất
 def doi_loi():
     root = Toplevel()
     root.title("11. Đôi lời của nhà sản xuất")
     message = (
         "Chào mừng bạn đến với ứng dụng của chúng tôi!\n"
-        "Chúng tôi hy vọng bạn sẽ tìm thấy những tính năng hữu ích và thú vị.\n"
+        "Chúng tôi hy vọng bạn sẽ tìm thấy những tính năng hữu ích và thú vị."
         "Nếu bạn có bất kỳ câu hỏi hoặc đề xuất nào, vui lòng liên hệ với chúng tôi.\n"
         "Cảm ơn bạn đã sử dụng ứng dụng!\n"
-        "Hợp tác và phát triển : Đinh Viết Phúc và Ngô Văn Anh Khoa."
+        "Nhà sản xuất : Đinh Viết Phúc và Ngô Văn Anh Khoa."
+        
     )
     ttk.Label(root, text=message, wraplength=300, justify="center").pack(padx=20, pady=20)
 
-
-root = Tk()
+root = Tk() 
 frm = ttk.Frame(root, padding=10)
-frm.grid()
-ttk.Label(frm, text="Menu", anchor="center").grid(column=0, row=0, columnspan=2, sticky="ew")
-ttk.Button(frm, text="1.Đồng hồ và lịch", command= clock).grid(column=0, row=1, columnspan=2, sticky="ew")
-ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew")
-ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew")
-ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew")
-ttk.Button(frm, text="5.Thời tiết", command=thoi_tiet).grid(column=0, row=5, columnspan=2, sticky="ew")
-ttk.Button(frm, text="6.Game ", command=mini_game).grid(column=0, row=6, columnspan=2, sticky="ew")
-ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew")
-ttk.Button(frm, text="8. Máy phát nhạc ", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew")
-ttk.Button(frm, text="9. Viết văn bản ", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew")
-ttk.Button(frm, text="10.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=10, columnspan=2, sticky="ew")
-ttk.Button(frm, text="11. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=11, columnspan=2, sticky="ew")
+frm.grid(row=0, column=0, sticky="nsew")
+
+root.grid_rowconfigure(0, weight=1)    
+root.grid_columnconfigure(0, weight=1) 
+
+ttk.Label(frm, text="Menu", anchor="center", font=('Arial', 14, 'bold')).grid(column=0, row=0, columnspan=2, sticky="ew", pady=5) 
+ttk.Button(frm, text="1.Đồng hồ và lịch", command=clock).grid(column=0, row=1, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="5.Bàn phím ảo", command=Ban_phim_ao).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="6.Game ", command=mini_game).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="8. Máy phát nhạc ", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="9. Viết văn bản ", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="10.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="11. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
+
+frm.grid_columnconfigure(0, weight=1) 
+frm.grid_columnconfigure(1, weight=1) 
 
 root.mainloop()
