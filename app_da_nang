@@ -233,15 +233,7 @@ def chuyen_am_thanh_thanh_van_ban():
         text_area.update_idletasks() # Đảm bảo giao diện người dùng cập nhật ngay lập tức
 
     def convert_audio_to_text(file_path=None, language="vi-VN", use_microphone=False):
-        """
-        Chuyển đổi một file âm thanh (MP3) hoặc giọng nói trực tiếp từ micro
-        thành văn bản. Hiển thị tiến trình và xử lý lỗi.
 
-        Args:
-            file_path (str, optional): Đường dẫn đến file MP3. Bắt buộc nếu use_microphone là False.
-            language (str, optional): Mã ngôn ngữ cho nhận dạng giọng nói (ví dụ: "vi-VN", "en-US").
-            use_microphone (bool, optional): Nếu True, sử dụng micro để nhập; ngược lại, sử dụng file_path.
-        """
         recognizer = sr.Recognizer()
 
         try:
@@ -291,13 +283,6 @@ def chuyen_am_thanh_thanh_van_ban():
             update_progress(f"Lỗi: {e}")
 
     def select_mp3_file(language="vi-VN"):
-        """
-        Mở hộp thoại file để chọn file MP3 và sau đó
-        bắt đầu một luồng mới để chuyển đổi nó thành văn bản.
-
-        Args:
-            language (str): Mã ngôn ngữ cho nhận dạng giọng nói.
-        """
         # Yêu cầu người dùng chọn một file MP3
         file_path = filedialog.askopenfilename(
             title="Chọn file MP3",
@@ -309,19 +294,14 @@ def chuyen_am_thanh_thanh_van_ban():
                              args=(file_path, language, False)).start()
 
     def start_microphone_recognition(language="vi-VN"):
-        """
-        Bắt đầu một luồng mới để nhận dạng giọng nói từ micro.
 
-        Args:
-            language (str): Mã ngôn ngữ cho nhận dạng giọng nói.
-        """
         # Chạy nhận dạng micro trong một luồng riêng biệt
         threading.Thread(target=convert_audio_to_text,
                          args=(None, language, True)).start()
 
     # Thiết lập cửa sổ Tkinter chính
     root = Toplevel()
-    root.title("Chuyển âm thanh thành văn bản")
+    root.title("5. Chuyển âm thanh thành văn bản")
     root.geometry("700x500") # Cửa sổ lớn hơn một chút
 
     # Cấu hình lưới để đáp ứng
@@ -790,7 +770,7 @@ def thoi_tiet():
             with open(CONFIG_FILE, 'w', encoding='utf-8') as configfile:
                 config.write(configfile)
         except Exception as e:
-            messagebox.showerror("Lỗi lưu", f"Không thể lưu mã API: {e}")
+            messagebox.showerror("Lỗi lưu", f"Không thể lưu khóa API: {e}")
 
     def load_api_key():
         config = configparser.ConfigParser()
@@ -827,7 +807,7 @@ def thoi_tiet():
             return
 
         if not api_key:
-            messagebox.showwarning("Lỗi", "Vui lòng nhập mã API của bạn.")
+            messagebox.showwarning("Lỗi", "Vui lòng nhập khóa API của bạn. Nếu chưa có vui lòng truy cập vào api.openweathermap.org để lấy khóa API miễn phí ")
             return
         
         save_api_key(api_key)
@@ -867,7 +847,7 @@ def thoi_tiet():
         city_entry.insert(0, selected_city)
 
     root = Tk()
-    root.title("Ứng dụng thời tiết")
+    root.title("10.Thời tiết")
     root.geometry("500x300")
 
     # --- Giao diện ---
@@ -921,47 +901,301 @@ def giao_dien():
 
 
     root = Toplevel()
-    root.title("10. Thay đổi giao diện người dùngdùng")
-    tinh_nang_10 = ttk.Frame(root, padding=15)
-    tinh_nang_10.grid()
-    ttk.Label(tinh_nang_10, text="Chọn Màu Giao diện:", font=('Arial', 14, 'bold')).grid(row=0, column=0, pady=10)
-    ttk.Button(tinh_nang_10, text="Màu Tùy Chỉnh", command=chon_mau).grid(row=1, column=0, sticky="ew", pady=5)
+    root.title("11. Thay đổi giao diện người dùng")
+    tinh_nang_11 = ttk.Frame(root, padding=15)
+    tinh_nang_11.grid()
+    ttk.Label(tinh_nang_11, text="Chọn Màu Giao diện:", font=('Arial', 14, 'bold')).grid(row=0, column=0, pady=10)
+    ttk.Button(tinh_nang_11, text="Màu Tùy Chỉnh", command=chon_mau).grid(row=1, column=0, sticky="ew", pady=5)
     root.mainloop()
 # Tính năng 12: Bảng tuần hoàn hóa học
+root = None
+loading_frame = None
+loading_label = None
+cache_file = "periodic_table_data.json"
+periodic_elements = []
+
+periodic_table_frame = None
+info_frame = None
+info_text_area = None
 def bang_tuan_hoan():
+
+    def load_or_restore_element_data(url, current_loading_label, current_root):
+        global periodic_elements
+
+    # 1. Thử tải từ cache
+        if os.path.exists(cache_file):
+            try:
+                current_loading_label.config(text="Đang tải dữ liệu từ cache...")
+                current_root.update_idletasks()
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if 'elements' in data and isinstance(data['elements'], list):
+                    periodic_elements = sorted(data['elements'], key=lambda x: x['number'])
+                    current_loading_label.config(text="Đã tải dữ liệu từ cache.")
+                    return True
+                else:
+                    print("Dữ liệu cache không hợp lệ, sẽ tải lại.")
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Lỗi khi đọc file cache: {e}. Sẽ thử tải lại từ internet.")
+    # 2. Nếu không có cache hoặc cache bị lỗi, tải từ internet
+        current_loading_label.config(text="Đang tải dữ liệu từ internet...")
+        current_root.update_idletasks()
+        try:
+            response = requests.get(url, stream=True) # Use stream=True for progress
+            response.raise_for_status()
+        
+            json_data_chunks = []
+            for chunk in response.iter_content(chunk_size=8192):
+                json_data_chunks.append(chunk)
+
+            data = json.loads(b''.join(json_data_chunks).decode('utf-8'))
+            periodic_elements = sorted(data['elements'], key=lambda x: x['number'])
+
+            # Lưu dữ liệu vào cache
+            try:
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=4, ensure_ascii=False)
+                print(f"Đã lưu dữ liệu vào cache: {cache_file}")
+            except IOError as e:
+                print(f"Lỗi khi lưu dữ liệu vào cache: {e}")
+
+            return True
+
+        except requests.exceptions.RequestException as e:
+            print(f"Lỗi khi tải dữ liệu từ internet: {e}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"Lỗi giải mã JSON từ internet: {e}")
+            return False     
+
+    def create_widgets(current_root, current_loading_frame):
+        global periodic_table_frame, info_frame, info_text_area
+
+    # Ẩn khung tải
+        current_loading_frame.destroy()
+
+    # Cấu hình grid cho root window
+        current_root.grid_rowconfigure(0, weight=1) # Hàng 0 sẽ giãn nở theo chiều dọc
+        current_root.grid_columnconfigure(0, weight=4) # Cột 0 (khung bảng tuần hoàn) sẽ giãn nở nhiều hơn theo chiều ngang
+        current_root.grid_columnconfigure(1, weight=1) # Cột 1 (khung thông tin) sẽ giãn nở ít hơn theo chiều ngang
+
+    # Khung chứa bảng tuần hoàn
+        periodic_table_frame = Frame(current_root, bg="#F0F0F0", padx=10, pady=10)
+        periodic_table_frame.grid(row=0, column=0, sticky="nsew") # Đặt ở hàng 0, cột 0 và giãn nở
+
+    # Khung hiển thị thông tin chi tiết nguyên tố
+        info_frame = Frame(current_root, bg="#E0E0E0", width=300, padx=10, pady=10, bd=2, relief="groove")
+        info_frame.grid(row=0, column=1, sticky="nsew") # Đặt ở hàng 0, cột 1 và giãn nở
+        info_frame.grid_propagate(False) # Ngăn khung thông tin thay đổi kích thước
+
+    # Cấu hình grid cho info_frame
+        info_frame.grid_rowconfigure(1, weight=1) # Dòng cho info_text_area sẽ giãn nở
+        info_frame.grid_columnconfigure(0, weight=1) # Cột duy nhất sẽ giãn nở
+
+        info_label = Label(info_frame, text="Thông tin Nguyên tố", font=("Arial", 14, "bold"), bg="#E0E0E0", fg="#333333")
+        info_label.grid(row=0, column=0, pady=10) # Đặt ở hàng 0, cột 0 trong info_frame
+
+    # Vùng văn bản có thể cuộn để hiển thị thông tin chi tiết
+        info_text_area = scrolledtext.ScrolledText(info_frame, wrap=WORD, font=("Arial", 10), width=35, height=25,
+                                                   bg="#F8F8F8", fg="#000000", bd=1, relief="solid", padx=5, pady=5)
+        info_text_area.grid(row=1, column=0, pady=5, sticky="nsew") # Đặt ở hàng 1, cột 0 và giãn nở
+        info_text_area.config(state=DISABLED) # Ban đầu không cho chỉnh sửa
+
+        display_periodic_table()
+        add_category_legend()
+    
+    def display_periodic_table():
+        # Cấu hình lưới cho periodic_table_frame để các hàng và cột giãn ra
+        for i in range(10): # Có thể cần nhiều hàng hơn cho lanthanides/actinides
+            periodic_table_frame.grid_rowconfigure(i, weight=1)
+        for i in range(18): # 18 cột cho các nhóm
+            periodic_table_frame.grid_columnconfigure(i, weight=1)
+
+    # Định nghĩa vị trí bắt đầu cho Lanthanides và Actinides nếu hiển thị riêng
+        lant_row_start = 8
+        act_row_start = 9
+        lant_act_col_offset = 3 # Cột bắt đầu tương đối
+
+        for element in periodic_elements:
+            symbol = element['symbol']
+            atomic_number = element['number']
+            category = element['category']
+            period = element['period']
+            xpos = element['xpos']
+            ypos = element['ypos']
+
+            background_color = get_color_by_category(category)
+
+        # Điều chỉnh vị trí cho Lanthanides và Actinides
+            if category in ["lanthanide", "actinide"]:
+                if category == "lanthanide":
+                    row = lant_row_start
+                else: # actinide
+                    row = act_row_start
+            
+            # Tính toán cột dựa trên số thứ tự trong series đó
+                if atomic_number >= 57 and atomic_number <= 71: # Lanthanides
+                    col = lant_act_col_offset + (atomic_number - 57)
+                elif atomic_number >= 89 and atomic_number <= 103: # Actinides
+                    col = lant_act_col_offset + (atomic_number - 89)
+                else: # Các nguyên tố khác trong nhóm f-block nhưng không thuộc series chính
+                    row = ypos - 1
+                    col = xpos - 1
+            else:
+                row = ypos - 1 # ypos trong JSON bắt đầu từ 1
+                col = xpos - 1 # xpos trong JSON bắt đầu từ 1
+
+        # Tạo nút cho mỗi nguyên tố
+            element_button = Button(periodic_table_frame,
+                                    text=f"{atomic_number}\n{symbol}",
+                                    command=lambda e=element: display_element_info(e),
+                                    bg=background_color,
+                                    fg="black",
+                                    font=("Arial", 9, "bold"),
+                                    width=5, height=3,
+                                    bd=1, relief="raised")
+            element_button.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
+
+    # Thêm các nút giữ chỗ cho Lanthanides và Actinides ở vị trí ban đầu
+        placeholder_la_button = Button(periodic_table_frame, text="57-71\nLa-Lu", bg="#D0D0D0", fg="black",
+                                       font=("Arial", 9, "bold"), width=5, height=3, bd=1, relief="raised")
+        placeholder_la_button.grid(row=5, column=2, padx=1, pady=1, sticky="nsew")
+
+        placeholder_ac_button = Button(periodic_table_frame, text="89-103\nAc-Lr", bg="#D0D0D0", fg="black",
+                                       font=("Arial", 9, "bold"), width=5, height=3, bd=1, relief="raised")
+        placeholder_ac_button.grid(row=6, column=2, padx=1, pady=1, sticky="nsew")
+
+    def get_color_by_category(category):
+        colors = {
+            "alkali metal": "#FF9999",          # Kim loại kiềm (Đỏ nhạt)
+            "alkaline earth metal": "#FFCC99", # Kim loại kiềm thổ (Cam nhạt)
+            "metalloid": "#FFFF99",             # Á kim (Vàng nhạt)
+            "nonmetal": "#CCFFCC",              # Phi kim (Xanh lá nhạt)
+            "noble gas": "#99CCFF",             # Khí hiếm (Xanh dương nhạt)
+            "halogen": "#CC99FF",               # Halogen (Tím nhạt)
+            "transition metal": "#FFCCCC",      # Kim loại chuyển tiếp (Hồng)
+            "post-transition metal": "#CCCCFF", # Kim loại sau chuyển tiếp (Oải hương)
+            "lanthanide": "#FFCCFF",            # Lanthanide (Hồng cánh sen nhạt)
+            "actinide": "#FF99FF",              # Actinide (Hồng đậm hơn)
+            "unknown, probably transition metal": "#D3D3D3", # Không xác định (Xám nhạt)
+            "unknown, probably post-transition metal": "#D3D3D3", # Không xác định (Xám nhạt)
+            "unknown, probably metalloid": "#D3D3D3", # Không xác định (Xám nhạt)
+            "unknown, predicted to be noble gas": "#D3D3D3" # Không xác định (Xám nhạt)
+        }
+        return colors.get(category, "#E0E0E0") # Màu mặc định là xám nhạt
+
+    def display_element_info(element):
+    
+        info_text = f"Tên: {element.get('name', 'N/A')}\n" \
+                    f"Ký hiệu: {element.get('symbol', 'N/A')}\n" \
+                    f"Số Nguyên Tử: {element.get('number', 'N/A')}\n" \
+                    f"Khối Lượng Nguyên Tử: {element.get('atomic_mass', 'N/A')} u\n" \
+                    f"Loại: {element.get('category', 'N/A').replace('_', ' ').title()}\n" \
+                    f"Chu Kỳ: {element.get('period', 'N/A')}\n" \
+                    f"Nhóm: {element.get('group', 'N/A')}\n"\
+                    f"Điện Âm (Pauling): {element.get('electronegativity_pauling', 'N/A')}\n" \
+                    f"Mật Độ: {element.get('density', 'N/A')} g/cm³\n" \
+                    f"Điểm Nóng Chảy: {element.get('melt', 'N/A')} K\n" \
+                    f"Điểm Sôi: {element.get('boil', 'N/A')} K\n" \
+                    f"Người Phát Hiện: {element.get('discovered_by', 'N/A')}"
+
+        info_text_area.config(state=NORMAL) # Cho phép chỉnh sửa tạm thời để cập nhật nội dung
+        info_text_area.delete(1.0, END) # Xóa nội dung cũ
+        info_text_area.insert(END, info_text) # Chèn thông tin mới
+        info_text_area.config(state=DISABLED) # Khóa lại sau khi cập nhật
+
+    def add_category_legend():
+        """Thêm chú giải màu sắc cho các loại nguyên tố."""
+        legend_frame = Frame(info_frame, bg="#E0E0E0", pady=10)
+        legend_frame.grid(row=2, column=0, sticky="ew") # Đặt ở hàng 2, cột 0 trong info_frame và giãn nở
+
+    # Tiêu đề chú giải
+        Label(legend_frame, text="Chú Giải Màu Sắc:", font=("Arial", 11, "bold"), bg="#E0E0E0").grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
+
+    # Định nghĩa các loại nguyên tố và tên hiển thị tiếng Việt
+        categories = {
+            "kim loại kiềm": "alkali metal",
+            "kim loại kiềm thổ": "alkaline earth metal",
+            "á kim": "metalloid",
+            "phi kim": "nonmetal",
+            "khí hiếm": "noble gas",
+            "halogen": "halogen",
+            "kim loại chuyển tiếp": "transition metal",
+            "kim loại sau chuyển tiếp": "post-transition metal",
+            "lanthanide": "lanthanide",
+            "actinide": "actinide",
+            "không xác định": "unknown, probably transition metal" # Dùng một màu đại diện cho unknown
+        }
+
+        row_idx = 1 # Bắt đầu từ hàng 1, vì hàng 0 là tiêu đề chú giải
+        for display_name, category_key in categories.items():
+            color = get_color_by_category(category_key)
+        
+        # Ô màu sắc
+            Label(legend_frame, bg=color, width=3, height=1, bd=1, relief="solid").grid(row=row_idx, column=0, padx=5, pady=1, sticky="w")
+        # Nhãn văn bản
+            Label(legend_frame, text=display_name.title(), font=("Arial", 9), bg="#E0E0E0").grid(row=row_idx, column=1, padx=0, pady=1, sticky="w")
+            row_idx += 1
+
+        legend_frame.grid_columnconfigure(1, weight=1) # Cho phép cột chứa văn bản giãn nở
+
+    global root, loading_frame, loading_label
+
     root = Toplevel()
-    root.title("11. Bảng tuần hoàn hóa học")
-    # Tạo khung giao diện
-    tinh_nang_11 = ttk.Frame(root, padding=10)
-    tinh_nang_11.grid()
-    try:
-        image = Image.open(r"D:\file cũ\data\bang_tuan_hoan.jpg")  # Đường dẫn tuyệt đối
-        image = image.resize((800, 442))  # Không cần ANTIALIAS với phiên bản Pillow mới
-        photo = ImageTk.PhotoImage(image)
-    except Exception as e:
-        print("Lỗi khi mở hình ảnh:", e)
+    root.title("12.Bảng Tuần Hoàn Hóa Học")
+    root.geometry("1200x800")
+    root.configure(bg="#F0F0F0")
+
+    # Khung chứa thông báo tải dữ liệu ban đầu
+    loading_frame = Frame(root, bg="#F0F0F0")
+    loading_frame.pack(expand=True, fill=BOTH) # Vẫn dùng pack cho khung tải ban đầu để dễ dàng căn giữa
+
+    loading_label = Label(loading_frame, text="Đang khởi tạo...", font=("Arial", 16, "bold"), bg="#F0F0F0")
+    loading_label.pack(pady=50)
+
+    # Cập nhật giao diện để hiển thị khung tải ngay lập tức
+    root.update_idletasks()
+
+    # Tải hoặc khôi phục dữ liệu nguyên tố
+    data_loaded_successfully = load_or_restore_element_data(
+        "https://raw.githubusercontent.com/Bowserinator/Periodic-Table-JSON/master/PeriodicTableJSON.json",
+        loading_label, root
+    )
+
+    if not data_loaded_successfully:
+        messagebox.showerror("Lỗi", "Không thể tải hoặc khôi phục dữ liệu bảng tuần hoàn. Vui lòng kiểm tra kết nối internet hoặc file cache.")
+        root.destroy()
         return
+    
+    # Tạo và hiển thị các widgets chính sau khi tải dữ liệu
+    # loading_frame sẽ bị hủy bỏ và các widget chính sẽ dùng grid
+    create_widgets(root, loading_frame)
 
-    # Tạo nhãn và hiển thị hình ảnh
-    label = ttk.Label(tinh_nang_11, image=photo)
-    label.image = photo  # Giữ tham chiếu để tránh ảnh biến mất
-    label.grid(row=0, column=0)
-
-    # Chạy vòng lặp chính
     root.mainloop()
+
 # Tính năng 13: Đôi lời của nhà sản xuất
 def doi_loi():
     root = Toplevel()
-    root.title("11. Đôi lời của nhà sản xuất")
+    root.title("13. Lời nhắn từ nhà phát triển") # Tiêu đề thân thiện hơn
+    
+    # Định nghĩa nội dung thông điệp
     message = (
-        "Chào mừng bạn đến với ứng dụng của chúng tôi!\n"
-        "Chúng tôi hy vọng bạn sẽ tìm thấy những tính năng hữu ích và thú vị."
-        "Nếu bạn có bất kỳ câu hỏi hoặc đề xuất nào, vui lòng liên hệ với chúng tôi.\n"
-        "Cảm ơn bạn đã sử dụng ứng dụng!\n"
-        "Nhà sản xuất : Đinh Viết Phúc và Ngô Văn Anh Khoa."
-        
+        "Chào mừng bạn đến với ứng dụng của chúng tôi!\n\n" # Thêm dòng trống để dễ đọc
+        "Chúng tôi đã tạo ra ứng dụng này với mong muốn mang lại những tính năng hữu ích "
+        "và trải nghiệm thú vị cho bạn.\n\n" # Ngắt dòng hợp lý
+        "Nếu bạn có bất kỳ câu hỏi, góp ý, hoặc cần hỗ trợ, "
+        "xin đừng ngần ngại liên hệ với chúng tôi.\n\n" # Lời kêu gọi hành động rõ ràng
+        "Chân thành cảm ơn bạn đã tin tưởng và sử dụng ứng dụng!\n\n"
+        "Trân trọng,\n\n"
+        "Đội ngũ phát triển: Đinh Viết Phúc và Ngô Văn Anh Khoa." 
     )
-    ttk.Label(root, text=message, wraplength=300, justify="center").pack(padx=20, pady=20)
+    ttk.Label(root, 
+              text=message, 
+              wraplength=400, 
+              justify="left", 
+              font=("Arial", 10)).pack(padx=20, pady=20) 
+    
+    root.mainloop()
 
 root = Tk() 
 root.title("App_đa_năng(beta)")
@@ -983,7 +1217,7 @@ ttk.Button(frm, text="8. Máy phát nhạc và video ", command=may_phat_nhac_va
 ttk.Button(frm, text="9. Viết văn bản ", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="10. Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="11.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
-ttk.Button(frm, text="12.Bảng tuần hoàn", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
+ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
 ttk.Button(frm, text="13. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
 
 frm.grid_columnconfigure(0, weight=1) 
