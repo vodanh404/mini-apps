@@ -3,145 +3,93 @@ from tkinter import ttk
 import configparser
 import os
 from datetime import datetime, date
-from tkcalendar import Calendar # pip install tkcalendar
+from tkcalendar import Calendar 
 from ttkthemes import ThemedTk, ThemedStyle
 
-CONFIG_FILE = "config_notes.ini"
-config = configparser.ConfigParser()
-notes = {}
-current_selected_date = "" # Khởi tạo toàn cục, vì nó được sử dụng trước khi hàm thiết lập nó
+CONFIG_FILE = "notes.ini"
+
+def load_notes():
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+    return config
+
+def save_notes(selected_date, note_text):
+    config = load_notes()
+    if selected_date not in config:
+        config[selected_date] = {}
+    config[selected_date]['note'] = note_text.strip()
+
+    with open(CONFIG_FILE, "w") as file:
+        config.write(file)
 
 def clock():
-    global notes, current_selected_date # Khai báo sử dụng toàn cục ở đây
-
     if not root:
         return
 
-    def load_notes():
-        if not os.path.exists(CONFIG_FILE):
-            return {}
-        config.read(CONFIG_FILE)
-        # Sử dụng khối try-except để phân tích cú pháp an toàn hơn trong trường hợp tệp INI bị định dạng sai
-        try:
-            return {section: config[section].get("note", "") for section in config.sections() if section != "Settings"}
-        except configparser.NoOptionError:
-            print(f"Cảnh báo: Tệp cấu hình '{CONFIG_FILE}' bị định dạng sai. Một số phần có thể thiếu tùy chọn 'note'.")
-            return {section: "" for section in config.sections() if section != "Settings"}
-
-
-    def save_notes():
-        config.read(CONFIG_FILE) # Đọc trạng thái hiện tại để giữ lại các phần khác
-        settings = config["Settings"] if "Settings" in config else {}
-        config_to_write = configparser.ConfigParser() # Sử dụng một trình phân tích cú pháp mới để ghi
-        if settings:
-            config_to_write["Settings"] = settings
-        for date_key, note_value in notes.items():
-            config_to_write[date_key] = {"note": note_value}
-        try:
-            with open(CONFIG_FILE, "w") as file:
-                config_to_write.write(file)
-        except IOError as e:
-            print(f"Lỗi khi lưu ghi chú vào {CONFIG_FILE}: {e}")
-
-    def update_clock():
-        hom_nay_label.config(text=f"Ngày hôm nay: {datetime.now().strftime('%d-%m-%Y')}")
-        thoi_gian_label.config(text=f"Thời gian: {datetime.now().strftime('%H:%M:%S')}")
-        root.after(1000, update_clock)
-
-    def update_calendar_highlight():
-        today = date.today()
-        events = cal.get_calevents()
-        already_exists = any(cal.calevent_cget(ev_id, "text") == "Hôm nay" for ev_id in events)
-
-        if not already_exists:
-            cal.calevent_create(today, "Hôm nay", "highlight")
-
-        cal.tag_config("highlight", background="lightblue", foreground="black")
-        # Không cần lên lịch hàng giây. Hàng ngày là đủ.
-        root.after(86400000, update_calendar_highlight)
-
-    def on_date_selected(event=None):
-        global current_selected_date
-        save_notes()
-        selected_date_obj = cal.selection_get()
-        current_selected_date = selected_date_obj.strftime("%Y-%m-%d")
-        update_selected_date_display()
-
-    def update_selected_date_display():
-        note_date_label.config(text=current_selected_date)
-        note_text.delete(1.0, tk.END)
-        note_text.insert(1.0, notes.get(current_selected_date, ""))
-
-    def auto_save_note(event=None):
-        notes[current_selected_date] = note_text.get(1.0, tk.END).strip()
-        save_notes()
-
+    # Tạo cửa sổ phụ cho tính năng 1
     tinh_nang_1 = tk.Toplevel(root)
-    tinh_nang_1.title("Chọn chủ đề")
+    tinh_nang_1.title("Lịch và đồng hồ")
     tinh_nang_1.resizable(False, False)
 
+    # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_1)
-    style.set_theme("arc")
+    style.set_theme(current_theme)
     theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
     tinh_nang_1.config(bg=theme_bg_color)
 
-    main_frame = ttk.Frame(tinh_nang_1, padding="10")
-    main_frame.grid(row=0, column=0, sticky="nsew")
-    tinh_nang_1.grid_rowconfigure(0, weight=1)
-    tinh_nang_1.grid_columnconfigure(0, weight=1)
-
     notes = load_notes()
-    current_selected_date = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%d-%m-%Y")
 
-    # Khung Ghi chú
-    notes_frame = ttk.Frame(main_frame, padding="10", relief="groove", borderwidth=2)
-    notes_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-    main_frame.grid_rowconfigure(0, weight=1)
-    main_frame.grid_columnconfigure(0, weight=1)
+    # Đặt các frame vào cửa sổ Toplevel (tinh_nang_1)
+    frame_left = ttk.Frame(tinh_nang_1, padding=20)
+    frame_left.grid(column=0, row=0, sticky="nw")
 
-    ttk.Label(notes_frame, text="Ghi chú:", font=("Helvetica", 12, "bold")).grid(row=0, column=0, pady=5, sticky="w")
-    note_date_label = ttk.Label(notes_frame, text=current_selected_date, font=("Helvetica", 10))
-    note_date_label.grid(row=1, column=0, pady=2, sticky="w")
+    frame_right = ttk.Frame(tinh_nang_1, padding=20)
+    frame_right.grid(column=1, row=0, sticky="ne")
 
-    text_frame = ttk.Frame(notes_frame)
-    text_frame.grid(row=2, column=0, pady=5, sticky="nsew")
-    notes_frame.grid_rowconfigure(2, weight=1)
-    notes_frame.grid_columnconfigure(0, weight=1)
+    ttk.Label(frame_left, text="Ghi chú:", font=("Helvetica", 14, "bold")).grid(column=0, row=0, pady=5, sticky="w")
+    note_entry = tk.Text(frame_left, width=25, height=10, font=("Helvetica", 12))
+    note_entry.grid(column=0, row=1, pady=5)
 
-    note_text = tk.Text(text_frame, width=40, height=15, wrap="word", font=("Helvetica", 10))
-    note_text.grid(row=0, column=0, sticky="nsew")
-    text_frame.grid_rowconfigure(0, weight=1)
-    text_frame.grid_columnconfigure(0, weight=1)
+    def save_note():
+        selected_date = cal.get_date()
+        note_text = note_entry.get("1.0", tk.END).strip()
+        save_notes(selected_date, note_text)
+        print(f"Ghi chú cho {selected_date}: {note_text}")
 
-    scrollbar = ttk.Scrollbar(text_frame, command=note_text.yview)
-    scrollbar.grid(row=0, column=1, sticky="ns")
-    note_text.config(yscrollcommand=scrollbar.set)
-    note_text.bind("<KeyRelease>", auto_save_note)
+    ttk.Button(frame_left, text="Lưu ghi chú", command=save_note).grid(column=0, row=2, pady=10)
 
-    # Khung Đồng hồ và Lịch
-    clock_calendar_frame = ttk.Frame(main_frame, padding="10", relief="groove", borderwidth=2)
-    clock_calendar_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-    main_frame.grid_rowconfigure(0, weight=1)
-    main_frame.grid_columnconfigure(1, weight=1)
+    hom_nay = ttk.Label(frame_right, text=f"Ngày hôm nay: {today}", anchor="center", font=("Helvetica", 16))
+    hom_nay.grid(column=0, row=0, columnspan=2, pady=5)
 
-    ttk.Label(clock_calendar_frame, text="Đồng hồ", font=("Helvetica", 14, "bold")).grid(row=0, column=0, pady=5, sticky="n")
-    hom_nay_label = ttk.Label(clock_calendar_frame, text="", font=("Helvetica", 12))
-    hom_nay_label.grid(row=1, column=0, pady=2, sticky="n")
-    thoi_gian_label = ttk.Label(clock_calendar_frame, text="", font=("Helvetica", 24, "bold"))
-    thoi_gian_label.grid(row=2, column=0, pady=5, sticky="n")
+    thoi_gian = ttk.Label(frame_right, text="", anchor="center", font=("Helvetica", 24, "bold"))
+    thoi_gian.grid(column=0, row=1, columnspan=2, pady=5)
 
-    ttk.Label(clock_calendar_frame, text="Lịch", font=("Helvetica", 14, "bold")).grid(row=3, column=0, pady=5, sticky="n")
-    cal = Calendar(clock_calendar_frame, selectmode="day", date_pattern="yyyy-mm-dd")
-    cal.grid(row=4, column=0, pady=5, sticky="nsew")
-    clock_calendar_frame.grid_rowconfigure(4, weight=1)
-    clock_calendar_frame.grid_columnconfigure(0, weight=1)
-    cal.bind("<<CalendarSelected>>", on_date_selected)
+    cal = Calendar(frame_right, selectmode="day", year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)
+    cal.grid(column=0, row=2, columnspan=2, pady=10)
 
-    update_calendar_highlight()
-    update_clock()
-    update_selected_date_display()
+    # Đánh dấu ngày hôm nay
+    cal.tag_config("today", background="lightblue")
+    cal.calevent_create(datetime.now(), "Hôm nay", "today")
+
+    def update_clock_in_toplevel(): # Đổi tên hàm để tránh nhầm lẫn
+        thoi_gian_data = datetime.now().strftime("%H:%M:%S")
+        thoi_gian.config(text=f"Thời gian: {thoi_gian_data}")
+        # root.after(1000, update_clock_in_toplevel) # Dùng after của tinh_nang_1 nếu muốn nó dừng khi cửa sổ con đóng
+        tinh_nang_1.after(1000, update_clock_in_toplevel) # Tốt hơn nên dùng after của cửa sổ Toplevel
+
+    def update_note():
+        selected_date = cal.get_date()
+        note_entry.delete("1.0", tk.END)
+        if selected_date in notes and 'note' in notes[selected_date]:
+            note_entry.insert("1.0", notes[selected_date]['note'])
+
+    cal.bind("<<CalendarSelected>>", lambda event: update_note())
+
+    update_clock_in_toplevel()
     open_toplevels.append(tinh_nang_1)
     tinh_nang_1.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_1))
+
 
 
 def camera():
