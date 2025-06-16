@@ -20,6 +20,10 @@ import gzip
 import json
 import requests
 from unidecode import unidecode
+import psutil
+import platform
+import subprocess
+import re
 # Các tính năng của ứng dụng
 du_lieu_ghi_chu = "notes.ini"
 def load_notes(): # Tải ghi chú từ file ini
@@ -1265,6 +1269,248 @@ def may_tinh(): # Tính năng 4: Máy tính
 
     # Cập nhật hiển thị vòng 3 ban đầu (nếu là 4 vòng)
     update_resistor_bands_display()
+###################################################################################
+global_last_disk_io_counters = psutil.disk_io_counters()
+global_last_time = time.time()
+def thong_tin_va_hieu_nang():
+    if not root:
+        return
+
+    # --- Thiết lập cửa sổ phụ và các widget GUI TRƯỚC HẾT ---
+    tinh_nang_5 = tk.Toplevel(root)
+    tinh_nang_5.title("5. Thông tin và hiệu năng máy tính")
+    tinh_nang_5.resizable(False, False) # Vô hiệu hóa thay đổi kích thước
+
+    style = ThemedStyle(tinh_nang_5)
+    style.set_theme(current_theme)
+    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
+    tinh_nang_5.config(bg=theme_bg_color)
+
+    notebook = ttk.Notebook(tinh_nang_5)
+    notebook.pack(pady=10, fill="both", expand=True)
+
+    static_info_tab = ttk.Frame(notebook)
+    notebook.add(static_info_tab, text="Thông tin hệ thống")
+
+    canvas_static = tk.Canvas(static_info_tab)
+    scrollbar_static = ttk.Scrollbar(static_info_tab, orient="vertical", command=canvas_static.yview)
+    static_info_frame = ttk.Frame(canvas_static) # Frame thực sự chứa nội dung tĩnh
+
+    static_info_frame.bind("<Configure>", lambda e: canvas_static.configure(scrollregion=canvas_static.bbox("all")))
+    canvas_static.create_window((0, 0), window=static_info_frame, anchor="nw")
+    canvas_static.configure(yscrollcommand=scrollbar_static.set)
+    canvas_static.pack(side="left", fill="both", expand=True)
+    scrollbar_static.pack(side="right", fill="y")
+
+    performance_tab = ttk.Frame(notebook)
+    notebook.add(performance_tab, text="Hiệu năng thời gian thực")
+
+    # Labels để hiển thị thông tin hiệu năng động (được khai báo Cục bộ trong hàm này)
+    # Các biến này cần được định nghĩa TRƯỚC KHI update_performance_info được gọi
+    ttk.Label(performance_tab, text="Thông số hiệu năng thời gian thực", font=("Arial", 14, "bold")).pack(pady=(10, 5))
+
+    cpu_label = ttk.Label(performance_tab, text="Sử dụng CPU: Đang tải...", font=("Arial", 12))
+    cpu_label.pack(anchor='w', padx=10, pady=5)
+
+    ram_label = ttk.Label(performance_tab, text="Sử dụng RAM: Đang tải...", font=("Arial", 12))
+    ram_label.pack(anchor='w', padx=10, pady=5)
+
+    disk_speed_label = ttk.Label(performance_tab, text="Tốc độ ổ đĩa: Đang tải...", font=("Arial", 12))
+    disk_speed_label.pack(anchor='w', padx=10, pady=5)
+
+    cpu_temp_label = ttk.Label(performance_tab, text="Nhiệt độ CPU: Đang tải...", font=("Arial", 12))
+    cpu_temp_label.pack(anchor='w', padx=10, pady=5)
+
+    # --- Định nghĩa các hàm lấy thông tin hệ thống (Static) ---
+    def get_cpu_info():
+        info = {}
+        info['Loại CPU'] = platform.processor()
+        info['Số nhân vật lý'] = psutil.cpu_count(logical=False)
+        info['Số luồng'] = psutil.cpu_count(logical=True)
+        try:
+            temps = psutil.sensors_temperatures()
+            if 'coretemp' in temps:
+                info['Nhiệt độ CPU'] = f"{temps['coretemp'][0].current}°C"
+            elif 'cpu_thermal' in temps:
+                info['Nhiệt độ CPU'] = f"{temps['cpu_thermal'][0].current}°C"
+            else:
+                info['Nhiệt độ CPU'] = "Không khả dụng"
+        except Exception:
+            info['Nhiệt độ CPU'] = "Không khả dụng"
+        return info
+
+    def get_ram_static_info():
+        info = {}
+        svmem = psutil.virtual_memory()
+        info['Tổng dung lượng RAM'] = f"{svmem.total / (1024**3):.2f} GB"
+        return info
+
+    def get_disk_static_info():
+        info = {}
+        partitions = psutil.disk_partitions()
+        for partition in partitions:
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                info[f'Ổ đĩa {partition.device}'] = {
+                    'Tổng dung lượng': f"{usage.total / (1024**3):.2f} GB",
+                    'Đã sử dụng': f"{usage.used / (1024**3):.2f} GB",
+                    'Còn trống': f"{usage.free / (1024**3):.2f} GB",
+                    'Phần trăm sử dụng': f"{usage.percent}%"
+                }
+            except PermissionError:
+                continue
+        return info
+
+    def get_gpu_info():
+        info = {}
+        if platform.system() == "Windows":
+            try:
+                gpu_name_cmd = "Get-WmiObject win32_VideoController | Select-Object -ExpandProperty Name"
+                gpu_names = subprocess.run(["powershell", "-Command", gpu_name_cmd], capture_output=True, text=True).stdout.strip().split('\n')
+                info['Loại Card đồ họa'] = ", ".join([name.strip() for name in gpu_names if name.strip()]) if gpu_names else "Không xác định"
+
+                gpu_vram_cmd = "Get-WmiObject win32_VideoController | Select-Object -ExpandProperty AdapterRam"
+                gpu_vram_raw = subprocess.run(["powershell", "-Command", gpu_vram_cmd], capture_output=True, text=True).stdout.strip().split('\n')
+                gpu_vram = [int(ram) / (1024**2) for ram in gpu_vram_raw if ram.strip().isdigit()]
+                info['Dung lượng Bộ nhớ GPU'] = ", ".join([f"{vram:.0f} MB" for vram in gpu_vram]) if gpu_vram else "Không xác định"
+
+                info['Tốc độ xung nhịp GPU'] = "Không khả dụng qua PowerShell"
+            except Exception as e:
+                info['Lỗi lấy thông tin GPU'] = str(e)
+                info['Loại Card đồ họa'] = "Không xác định"
+                info['Dung lượng Bộ nhớ GPU'] = "Không xác định"
+                info['Tốc độ xung nhịp GPU'] = "Không xác định"
+        elif platform.system() == "Linux":
+            try:
+                output = subprocess.check_output("lspci | grep -i vga", shell=True).decode('utf-8')
+                gpu_name_match = re.search(r': (.+ \(rev.+?\))', output)
+                info['Loại Card đồ họa'] = gpu_name_match.group(1).strip() if gpu_name_match else "Không xác định"
+                info['Dung lượng Bộ nhớ GPU'] = "Thường khó lấy chính xác qua lspci"
+                info['Tốc độ xung nhịp GPU'] = "Không khả dụng qua lspci"
+            except Exception:
+                info['Loại Card đồ họa'] = "Không xác định"
+                info['Dung lượng Bộ nhớ GPU'] = "Không xác định"
+                info['Tốc độ xung nhịp GPU'] = "Không khả dụng"
+        else: # MacOS
+            info['Loại Card đồ họa'] = "Hãy kiểm tra thông tin hệ thống"
+            info['Dung lượng Bộ nhớ GPU'] = "Hãy kiểm tra thông tin hệ thống"
+            info['Tốc độ xung nhịp GPU'] = "Hãy kiểm tra thông tin hệ thống"
+        return info
+
+    def get_system_summary():
+        summary = {}
+        summary['Hệ điều hành'] = platform.system()
+        summary['Phiên bản OS'] = platform.release()
+        summary['Kiến trúc'] = platform.machine()
+        return summary
+
+    # --- Định nghĩa hàm cập nhật thông tin hiệu năng động ---
+    def update_performance_info():
+        global global_last_disk_io_counters, global_last_time
+        nonlocal cpu_label, ram_label, disk_speed_label, cpu_temp_label # Khai báo nonlocal để truy cập nhãn
+
+        # CPU Usage
+        cpu_percent = psutil.cpu_percent(interval=None)
+        cpu_freq = psutil.cpu_freq()
+        cpu_current_freq = f"{cpu_freq.current / 1000:.2f} GHz" if cpu_freq else "N/A"
+        cpu_label.config(text=f"Sử dụng CPU: {cpu_percent:.1f}% ({cpu_current_freq})")
+
+        # RAM Usage
+        svmem = psutil.virtual_memory()
+        ram_used_gb = svmem.used / (1024**3)
+        ram_percent = svmem.percent
+        ram_label.config(text=f"Sử dụng RAM: {ram_used_gb:.2f} GB ({ram_percent:.1f}%)")
+
+        # Disk Read/Write Speed
+        current_disk_io = psutil.disk_io_counters()
+        current_time = time.time()
+
+        time_diff = current_time - global_last_time
+        if time_diff > 0:
+            read_bytes_diff = current_disk_io.read_bytes - global_last_disk_io_counters.read_bytes
+            write_bytes_diff = current_disk_io.write_bytes - global_last_disk_io_counters.read_bytes # Lỗi đánh máy: phải là write_bytes
+            # Sửa lại:
+            write_bytes_diff = current_disk_io.write_bytes - global_last_disk_io_counters.write_bytes
+
+
+            read_speed_mbps = (read_bytes_diff / (1024 * 1024)) / time_diff
+            write_speed_mbps = (write_bytes_diff / (1024 * 1024)) / time_diff
+
+            disk_speed_label.config(text=f"Tốc độ ổ đĩa: Đọc: {read_speed_mbps:.2f} MB/s | Ghi: {write_speed_mbps:.2f} MB/s")
+        else:
+            disk_speed_label.config(text="Tốc độ ổ đĩa: Đang khởi tạo...")
+
+        global_last_disk_io_counters = current_disk_io
+        global_last_time = current_time
+
+        # Nhiệt độ CPU
+        try:
+            temps = psutil.sensors_temperatures()
+            if 'coretemp' in temps:
+                temp_text = f"Nhiệt độ CPU: {temps['coretemp'][0].current}°C"
+            elif 'cpu_thermal' in temps:
+                temp_text = f"Nhiệt độ CPU: {temps['cpu_thermal'][0].current}°C"
+            else:
+                temp_text = "Nhiệt độ CPU: Không khả dụng"
+        except Exception:
+            temp_text = "Nhiệt độ CPU: Không khả dụng"
+        cpu_temp_label.config(text=temp_text)
+
+        # Lên lịch cập nhật lại sau mỗi 1 giây
+        tinh_nang_5.after(1000, update_performance_info)
+
+    # --- Định nghĩa hàm tạo/cập nhật thông tin hệ thống tĩnh ---
+    def setup_static_info_display():
+        # Xóa nội dung cũ trong frame thông tin tĩnh
+        for widget in static_info_frame.winfo_children():
+            widget.destroy()
+
+        # Tạo tiêu đề
+        ttk.Label(static_info_frame, text="Tổng quan hệ thống", font=("Arial", 14, "bold")).pack(anchor='w', pady=(10, 5))
+        for k, v in get_system_summary().items():
+            ttk.Label(static_info_frame, text=f"- {k}: {v}", font=("Arial", 10)).pack(anchor='w')
+
+        ttk.Separator(static_info_frame, orient='horizontal').pack(fill='x', pady=10)
+
+        # CPU Static Info
+        ttk.Label(static_info_frame, text="Thông tin CPU", font=("Arial", 12, "bold")).pack(anchor='w', pady=(5, 5))
+        cpu_info = get_cpu_info()
+        for k, v in cpu_info.items():
+            if k != 'Nhiệt độ CPU':
+                ttk.Label(static_info_frame, text=f"- {k}: {v}", font=("Arial", 10)).pack(anchor='w')
+
+        ttk.Separator(static_info_frame, orient='horizontal').pack(fill='x', pady=10)
+
+        # RAM Static Info
+        ttk.Label(static_info_frame, text="Thông tin RAM", font=("Arial", 12, "bold")).pack(anchor='w', pady=(5, 5))
+        ram_static_info = get_ram_static_info()
+        for k, v in ram_static_info.items():
+            ttk.Label(static_info_frame, text=f"- {k}: {v}", font=("Arial", 10)).pack(anchor='w')
+
+        ttk.Separator(static_info_frame, orient='horizontal').pack(fill='x', pady=10)
+
+        # GPU Info
+        ttk.Label(static_info_frame, text="Thông tin Card đồ họa (GPU)", font=("Arial", 12, "bold")).pack(anchor='w', pady=(5, 5))
+        gpu_info = get_gpu_info()
+        for k, v in gpu_info.items():
+            ttk.Label(static_info_frame, text=f"- {k}: {v}", font=("Arial", 10)).pack(anchor='w')
+
+        ttk.Separator(static_info_frame, orient='horizontal').pack(fill='x', pady=10)
+
+        # Ổ đĩa Static Info
+        ttk.Label(static_info_frame, text="Thông tin Ổ đĩa", font=("Arial", 12, "bold")).pack(anchor='w', pady=(5, 5))
+        disk_static_info = get_disk_static_info()
+        if disk_static_info:
+            for disk, details in disk_static_info.items():
+                ttk.Label(static_info_frame, text=f"  {disk}:", font=("Arial", 10, "italic")).pack(anchor='w')
+                for k, v in details.items():
+                    ttk.Label(static_info_frame, text=f"    - {k}: {v}", font=("Arial", 10)).pack(anchor='w')
+        else:
+            ttk.Label(static_info_frame, text="Không tìm thấy thông tin ổ đĩa.", font=("Arial", 10)).pack(anchor='w')
+
+    # --- Gọi các hàm khởi tạo sau khi tất cả widgets và hàm con đã được định nghĩa ---
+    setup_static_info_display()
+    update_performance_info()
 ###################################################################################
 wiki_page_url = None 
 def tim_kiem_thong_tin(): # Tính năng 6: Tìm kiếm thông tin (wikipedia)
@@ -2554,7 +2800,7 @@ if __name__ == "__main__":
   #  ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
-  #  ttk.Button(frm, text="5.Chuyển âm thanh thành văn bản", command=chuyen_am_thanh_thanh_van_ban).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="5.Theo dõi thông tin và hiệu năng hệ thống", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="6. Tìm kiếm thông tin (wikipedia) ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="8. Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
