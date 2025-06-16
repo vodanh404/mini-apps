@@ -11,7 +11,7 @@ import time
 import tkinter as tk
 import math
 from tkinter import (ttk, scrolledtext, messagebox, Toplevel, Label, N, W, E, S, END, Entry, filedialog,
-                     Frame, Button, DISABLED, NORMAL, WORD, BOTH)
+                     Menu,Frame, Button, DISABLED, NORMAL, WORD, BOTH)
 import periodictable as pt
 from datetime import datetime, date
 from tkcalendar import Calendar 
@@ -24,6 +24,8 @@ import psutil
 import platform
 import subprocess
 import re
+import folium
+import pygame
 # Các tính năng của ứng dụng
 du_lieu_ghi_chu = "notes.ini"
 def load_notes(): # Tải ghi chú từ file ini
@@ -2131,6 +2133,322 @@ def van_ban(): # Tính năng 8: Trình soạn thảo văn bản
     edit_menu.add_separator()
     edit_menu.add_command(label="Chọn Tất Cả", command=select_all, accelerator="Ctrl+A")
 ###################################################################################
+def may_phat_nhac():
+    if not root: 
+        return
+    pygame.init()
+    HISTORY_FILE = "history.txt"
+    current_index = None  
+    paused = False        
+    playing = False  
+    SONG_END_EVENT = pygame.USEREVENT + 1
+
+    def save_history():
+        with open(HISTORY_FILE, "w", encoding='utf-8') as f:
+            for file in history:
+                f.write(file + "\n")
+    def load_history():
+
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, "r", encoding='utf-8') as f:
+                return [line for line in f.read().splitlines() if line.strip()]
+        return []
+    history = load_history()
+    def update_button_states():
+        if playing:
+            btn_pause.config(text="Tạm dừng" if not paused else "Tiếp tục", state=tk.NORMAL)
+            btn_stop.config(state=tk.NORMAL)
+        else:
+            btn_pause.config(text="Tạm dừng", state=tk.DISABLED)
+            btn_stop.config(state=tk.DISABLED)
+    
+    # Kích hoạt/vô hiệu hóa các nút điều hướng dựa trên lịch sử
+        if len(history) > 0:
+            btn_play_all.config(state=tk.NORMAL)
+        # Nút Next/Previous chỉ được kích hoạt nếu có bài hát đang phát (current_index không None)
+            btn_next.config(state=tk.NORMAL if current_index is not None else tk.DISABLED)
+            btn_prev.config(state=tk.NORMAL if current_index is not None else tk.DISABLED)
+        else:
+            btn_play_all.config(state=tk.DISABLED)
+            btn_next.config(state=tk.DISABLED)
+            btn_prev.config(state=tk.DISABLED)
+    def update_history_display():
+        for iid in history_list.get_children():
+            history_list.delete(iid)
+    
+        for i, file_path in enumerate(history):
+            display_name = os.path.basename(file_path)
+            if i == current_index:
+                history_list.insert(parent='', index='end', iid=str(i), text='', values=(display_name,), tags=('playing_song',)) 
+            else:
+                history_list.insert(parent='', index='end', iid=str(i), text='', values=(display_name,)) 
+    
+        save_history() # Đảm bảo lịch sử được lưu sau mỗi lần cập nhật Treeview
+        update_button_states() # Cập nhật trạng thái nút sau khi cập nhật danh sách
+    def play_audio(file_path):
+        global current_index, playing, paused
+        if not file_path:
+            lbl_status.config(text="Chưa chọn file nhạc nào.")
+            stop_audio()
+            return
+
+    # Thêm vào lịch sử nếu đây là bài hát mới
+        if file_path not in history:
+            history.append(file_path)
+
+        current_index = history.index(file_path)
+
+        pygame.mixer.music.load(file_path)
+        pygame.mixer.music.play()
+        pygame.mixer.music.set_endevent(SONG_END_EVENT) # Đặt sự kiện kết thúc bài hát
+        lbl_status.config(text=f"Đang phát: {os.path.basename(file_path)}")
+        playing = True
+        paused = False
+        update_history_display() # Cập nhật hiển thị và lưu lịch sử
+        update_button_states()
+    def toggle_pause():
+        global paused, playing
+        if playing:
+            if paused:
+                pygame.mixer.music.unpause()
+                lbl_status.config(text=f"Đang phát: {os.path.basename(history[current_index])}")
+            else:
+                pygame.mixer.music.pause()
+                lbl_status.config(text=f"Tạm dừng: {os.path.basename(history[current_index])}")
+            paused = not paused
+        else:
+            lbl_status.config(text="Không có bài hát đang phát!")
+        update_button_states()
+    def stop_audio():
+        global playing, paused, current_index
+        pygame.mixer.music.stop()
+        lbl_status.config(text="Đã dừng phát")
+        playing = False
+        paused = False
+        current_index = None # Đặt lại chỉ mục hiện tại khi dừng
+        update_history_display() # Cập nhật hiển thị (bỏ đánh dấu bài hát)
+        update_button_states()
+    def play_all_from_start():
+        if not history:
+            lbl_status.config(text="Danh sách trống, không có bài để phát.")
+            return
+        global current_index
+        current_index = 0
+        play_audio(history[current_index])
+    def play_next_song():
+        """Chuyển sang và phát bài hát tiếp theo trong danh sách."""
+        global current_index
+        if not history:
+            stop_audio()
+            return
+    
+        if current_index is None: # Nếu chưa có gì phát, bắt đầu từ đầu
+            current_index = 0
+        else:
+            current_index = (current_index + 1) % len(history) # Lặp lại từ đầu nếu ở cuối
+
+        play_audio(history[current_index])
+    def play_previous_song():
+        """Chuyển sang và phát bài hát trước đó trong danh sách."""
+        global current_index
+        if not history:
+            stop_audio()
+            return
+
+        if current_index is None: # Nếu chưa có gì phát, bắt đầu từ cuối
+            current_index = len(history) - 1
+        else:
+            current_index = (current_index - 1 + len(history)) % len(history) # Lặp lại về cuối nếu ở đầu
+
+        play_audio(history[current_index])
+    def get_selected_index(event):
+        """Lấy chỉ mục của mục được chọn trong Treeview."""
+        selected_item_ids = history_list.selection()
+        if selected_item_ids and selected_item_ids[0].isdigit():
+            idx = int(selected_item_ids[0])
+            if 0 <= idx < len(history):
+                return idx
+        return None
+    def play_selected(event):
+        """Phát bài hát khi nhấn đúp vào danh sách Treeview."""
+        selected_index = get_selected_index(event)
+        if selected_index is not None:
+            file_path = history[selected_index]
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.stop()
+            play_audio(file_path)
+    def remove_selected_from_history():
+        """Xóa bài hát đã chọn khỏi danh sách lịch sử."""
+        global history, current_index
+        selected_index = get_selected_index(None) # Lấy lựa chọn hiện tại
+        if selected_index is not None:
+            if current_index is not None and current_index == selected_index:
+                stop_audio()
+            
+            del history[selected_index]
+
+            if current_index is not None:
+                if selected_index < current_index:
+                    current_index -= 1
+                elif not history:
+                    current_index = None
+                elif current_index >= len(history) and len(history) > 0:
+                    current_index = len(history) - 1
+
+            update_history_display()
+    def move_song_up():
+        """Di chuyển bài hát được chọn lên một vị trí trong danh sách."""
+        global current_index
+        idx = get_selected_index(None)
+        if idx is not None and idx > 0:
+            song_to_move = history.pop(idx)
+            history.insert(idx - 1, song_to_move)
+
+            if current_index == idx:
+                current_index -= 1
+            elif current_index == idx - 1:
+                current_index += 1
+
+            update_history_display()
+            history_list.selection_set(str(idx - 1))
+    def move_song_down():
+        """Di chuyển bài hát được chọn xuống một vị trí trong danh sách."""
+        global current_index
+        idx = get_selected_index(None)
+        if idx is not None and idx < len(history) - 1:
+            song_to_move = history.pop(idx)
+            history.insert(idx + 1, song_to_move)
+
+            if current_index == idx:
+                current_index += 1
+            elif current_index == idx + 1:
+                current_index -= 1
+
+            update_history_display()
+            history_list.selection_set(str(idx + 1))
+    def show_context_menu(event):
+        """Hiển thị menu ngữ cảnh khi nhấn chuột phải vào Treeview."""
+        context_menu = Menu(root, tearoff=0)
+    
+        item_id_at_click = history_list.identify_row(event.y) 
+        if item_id_at_click and item_id_at_click.isdigit():
+            history_list.selection_clear()
+            history_list.selection_set(item_id_at_click)
+            history_list.focus(item_id_at_click)
+
+            index_at_click = int(item_id_at_click)
+        
+            if 0 <= index_at_click < len(history):
+                if index_at_click > 0:
+                    context_menu.add_command(label="Di chuyển lên", command=move_song_up)
+                if index_at_click < len(history) - 1:
+                    context_menu.add_command(label="Di chuyển xuống", command=move_song_down)
+            
+                if context_menu.index("end") is not None and context_menu.index("end") > 0:
+                    context_menu.add_separator()
+
+                context_menu.add_command(label="Xóa khỏi danh sách", command=remove_selected_from_history)
+    
+        if history:
+            if context_menu.index("end") is not None and context_menu.index("end") > 0: 
+                context_menu.add_separator()
+            context_menu.add_command(label="Xóa toàn bộ lịch sử", command=clear_history)
+    
+        if context_menu.index("end") is not None:
+            context_menu.tk_popup(event.x_root, event.y_root)
+    def open_file_from_button():
+        """Mở hộp thoại chọn tệp và phát nhạc."""
+        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3")])
+        if file_path:
+            play_audio(file_path)
+    def clear_history():
+        """Xóa toàn bộ lịch sử bài hát."""
+        global history, current_index
+        if playing:
+            stop_audio()
+        history.clear() # Dùng history.clear() thay vì gán lại danh sách trống
+        current_index = None
+        update_history_display()
+    def check_pygame_events():
+        """Kiểm tra các sự kiện của Pygame, đặc biệt là sự kiện kết thúc bài hát."""
+        for event in pygame.event.get():
+            if event.type == SONG_END_EVENT:
+                if playing and not paused:
+                    play_next_song()
+        tinh_nang_9.after(100, check_pygame_events)
+
+  
+    tinh_nang_9 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
+    tinh_nang_9.title("9.Máy phát nhạc") # Thiết lập tên cho cửa sổ
+    tinh_nang_9.geometry("700x500") # Thiết lập kích thước
+    # Đoạn này dùng để thay đổi giao diện 
+    style = ThemedStyle(tinh_nang_9)
+    style.set_theme(current_theme)
+    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
+    tinh_nang_9.config(bg=theme_bg_color)
+
+# Cấu hình grid cho cửa sổ chính
+    tinh_nang_9.grid_columnconfigure(0, weight=1) # Đã thay đổi root thành tinh_nang_9
+    tinh_nang_9.grid_columnconfigure(1, weight=0) # Đã thay đổi root thành tinh_nang_9
+    tinh_nang_9.grid_rowconfigure(0, weight=1) # Đã thay đổi root thành tinh_nang_9
+
+# Khung bên trái (danh sách bài hát)
+    frame_left = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') # Đã thay đổi root thành tinh_nang_9
+    frame_left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+    frame_left.grid_rowconfigure(1, weight=1)
+    frame_left.grid_columnconfigure(0, weight=1)
+    frame_left.grid_columnconfigure(1, weight=0)
+
+    lbl_list = ttk.Label(frame_left, text="Danh sách file âm thanh đã nghe", font=("Arial", 12, "bold"))
+    lbl_list.grid(row=0, column=0, columnspan=2, pady=(0, 5), sticky="ew")
+
+    history_list = ttk.Treeview(frame_left, selectmode='browse', columns=('song_name',))
+    history_list.column("#0", width=0, stretch=tk.NO)
+    history_list.column("song_name", anchor=tk.W, width=400)
+
+    style.configure('playing_song.Treeview', font=('Arial', 10, 'bold'), foreground='red')
+    style.map('Treeview', background=[('selected', style.lookup('TCombobox', 'fieldbackground'))])
+
+    history_list.grid(row=1, column=0, sticky="nsew")
+    history_list.bind("<Double-Button-1>", play_selected)
+    history_list.bind("<Button-3>", show_context_menu)
+    history_list.bind("<<TreeviewSelect>>", lambda e: update_button_states()) 
+
+    scrollbar = ttk.Scrollbar(frame_left, orient="vertical", command=history_list.yview)
+    scrollbar.grid(row=1, column=1, sticky="ns")
+    history_list.config(yscrollcommand=scrollbar.set)
+
+    # Khung bên phải (các nút điều khiển)
+    frame_right = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') # Đã thay đổi root thành tinh_nang_9
+    frame_right.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+    frame_right.grid_columnconfigure(0, weight=1)
+
+    lbl_status = ttk.Label(frame_right, text="Chưa phát file nào", wraplength=200, font=("Arial", 10))
+    lbl_status.grid(row=0, column=0, pady=5, sticky="ew")
+
+    control_buttons_frame = ttk.Frame(frame_right, style='ThemedFrame.TFrame')
+    control_buttons_frame.grid(row=1, column=0, pady=5, sticky="n")
+
+# Các nút điều khiển
+    btn_choose = ttk.Button(control_buttons_frame, text="Chọn file nhạc", command=open_file_from_button, width=15, style='TButton')
+    btn_choose.grid(row=0, column=0, pady=5)
+    btn_play_all = ttk.Button(control_buttons_frame, text="Phát toàn bộ list", command=play_all_from_start, width=15, style='TButton')
+    btn_play_all.grid(row=1, column=0, pady=5)
+    btn_prev = ttk.Button(control_buttons_frame, text="Bài trước", command=play_previous_song, width=15, style='TButton')
+    btn_prev.grid(row=2, column=0, pady=5)
+    btn_next = ttk.Button(control_buttons_frame, text="Bài tiếp theo", command=play_next_song, width=15, style='TButton')
+    btn_next.grid(row=3, column=0, pady=5)
+    btn_pause = ttk.Button(control_buttons_frame, text="Tạm dừng", command=toggle_pause, width=15, style='TButton')
+    btn_pause.grid(row=4, column=0, pady=5)
+    btn_stop = ttk.Button(control_buttons_frame, text="Dừng phát", command=stop_audio, width=15, style='TButton')
+    btn_stop.grid(row=5, column=0, pady=5)
+    # --- Khởi tạo trạng thái ban đầu ---
+    update_history_display()
+    update_button_states()
+    tinh_nang_9.after(100, check_pygame_events) # Đã thay đổi root thành tinh_nang_9
+    pygame.mixer.quit()
+
+###################################################################################
 VALID_CITIES_FILE = "valid_cities.txt"
 CITY_LIST_GZ_FILE = "city.list.json.gz"
 CITY_LIST_DOWNLOAD_URL = "http://bulk.openweathermap.org/sample/city.list.json.gz"
@@ -2758,12 +3076,18 @@ def bang_tuan_hoan():
     
     create_widgets(tinh_nang_12, loading_frame)
 ###################################################################################
+def ban_do():
+    m = folium.Map(location=[21.0285, 105.8542], zoom_start=5)
+    m.save("map.html")
+    import webbrowser
+    webbrowser.open("map.html")
+###################################################################################
 def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
     if not root: # 2 Dòng này nhằm đảm bảo cảu sổ chính tồn tại 
         return
     
     tinh_nang_13 = tk.Toplevel(root)
-    tinh_nang_13.title("13. Đôi lời của nhà sản xuất")
+    tinh_nang_13.title("14. Đôi lời của nhà sản xuất")
     tinh_nang_13.resizable(False, False)
     # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_13)
@@ -2800,14 +3124,15 @@ if __name__ == "__main__":
   #  ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="5.Theo dõi thông tin và hiệu năng hệ thống", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="5.Thông tin và hiệu năng hệ thống", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="6. Tìm kiếm thông tin (wikipedia) ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="8. Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
- #   ttk.Button(frm, text="9. Máy phát nhạc và video ", command=may_phat_nhac_va_video).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="9. Máy phát nhạc", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="10. Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="11.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="13. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="13.Bản đồ", command=ban_do).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="14. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
 
     root.mainloop()
