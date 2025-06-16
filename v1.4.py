@@ -10,11 +10,16 @@ import webbrowser
 import time
 import tkinter as tk
 import math
-from tkinter import ttk, scrolledtext, messagebox, Toplevel, Label, N, W, E, S, END, Entry, filedialog
+from tkinter import (ttk, scrolledtext, messagebox, Toplevel, Label, N, W, E, S, END, Entry, filedialog,
+                     Frame, Button, DISABLED, NORMAL, WORD, BOTH)
 import periodictable as pt
 from datetime import datetime, date
 from tkcalendar import Calendar 
 from ttkthemes import ThemedTk, ThemedStyle
+import gzip 
+import json
+import requests
+from unidecode import unidecode
 # Các tính năng của ứng dụng
 du_lieu_ghi_chu = "notes.ini"
 def load_notes(): # Tải ghi chú từ file ini
@@ -1880,6 +1885,305 @@ def van_ban(): # Tính năng 8: Trình soạn thảo văn bản
     edit_menu.add_separator()
     edit_menu.add_command(label="Chọn Tất Cả", command=select_all, accelerator="Ctrl+A")
 ###################################################################################
+VALID_CITIES_FILE = "valid_cities.txt"
+CITY_LIST_GZ_FILE = "city.list.json.gz"
+CITY_LIST_DOWNLOAD_URL = "http://bulk.openweathermap.org/sample/city.list.json.gz"
+API_KEYS = [
+    "383c5c635c88590b37c698bc100f6377",
+    "fe8d8c65cf345889139d8e545f57819a",
+    "68c51539817878022c5315a3b403165c"]
+VIETNAM_LOCATIONS = [] # Sẽ được điền dữ liệu sau khi khởi tạo
+# --- Hàm hỗ trợ dữ liệu (Data Utility Functions) ---
+def download_city_list_file(url, file_path):
+    try:
+        print(f"Đang tải tệp danh sách thành phố từ: {url}")
+        response = requests.get(url, stream=True)
+        response.raise_for_status() # Kiểm tra lỗi HTTP (ví dụ: 404 Not Found)
+
+        with open(file_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"Tệp '{file_path}' đã được tải xuống thành công.")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Lỗi khi tải tệp danh sách thành phố: {e}")
+        return False
+    except Exception as e:
+        print(f"Đã xảy ra lỗi không mong muốn khi tải tệp: {e}")
+        return False
+def extract_vietnam_cities(file_path=CITY_LIST_GZ_FILE):
+    vietnam_cities = []
+    try:
+        with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+            data = json.load(f)
+            for city_info in data:
+                if city_info.get('country') == 'VN':
+                    vietnam_cities.append(city_info.get('name'))
+        return sorted(list(set(vietnam_cities)))
+    except FileNotFoundError:
+        print(f"Lỗi: Không tìm thấy tệp '{file_path}'. Vui lòng đảm bảo tệp đã được tải xuống hoặc thử tải lại.")
+        return []
+    except Exception as e:
+        print(f"Đã xảy ra lỗi khi xử lý tệp '{file_path}': {e}")
+        return []
+def load_valid_cities():
+    """Tải danh sách các thành phố đã tìm kiếm thành công từ file."""
+    if os.path.exists(VALID_CITIES_FILE):
+        with open(VALID_CITIES_FILE, 'r', encoding='utf-8') as file:
+            return set(line.strip() for line in file if line.strip())
+    return set()
+def save_valid_city(city_name):
+    """Lưu tên thành phố vào danh sách các thành phố hợp lệ nếu chưa có."""
+    cities = load_valid_cities()
+    if city_name not in cities:
+        with open(VALID_CITIES_FILE, 'a', encoding='utf-8') as file:
+            file.write(f"{city_name}\n")
+def get_weather_data(city_name, api_keys):
+    city_for_api = unidecode(city_name) + ",VN"
+    ow_url = "http://api.openweathermap.org/data/2.5/weather?"
+
+    for api_key in api_keys:
+        call_url = f"{ow_url}appid={api_key}&q={city_for_api}&units=metric&lang=vi"
+        try:
+            response = requests.get(call_url)
+            data = response.json()
+
+            if data["cod"] == 200:
+                save_valid_city(city_name)
+                return f"""
+--- Thời tiết hiện tại ---
+🌡️ Nhiệt độ: {data['main']['temp']}°C
+Cảm giác như: {data['main']['feels_like']}°C
+💦 Độ ẩm: {data['main']['humidity']}%
+☁️ Thời tiết: {data['weather'][0]['description'].capitalize()}
+💨 Tốc độ gió: {data['wind']['speed']} m/s
+"""
+            elif data["cod"] == 404:
+                continue
+            else:
+                print(f"Lỗi API ({data['cod']}): {data['message']}")
+                continue
+        except requests.exceptions.ConnectionError:
+            print("Lỗi kết nối mạng khi gọi API.")
+            continue
+        except Exception as e:
+            print(f"Đã xảy ra lỗi không mong muốn: {e}")
+            continue
+
+    return f"Không thể tìm thấy thông tin thời tiết hiện tại cho '{city_name}' hoặc tất cả các khóa API đã hết hạn/lỗi. Vui lòng thử lại."
+def get_forecast_data(city_name, api_keys):
+    city_for_api = unidecode(city_name) + ",VN"
+    ow_forecast_url = "http://api.openweathermap.org/data/2.5/forecast?"
+
+    for api_key in api_keys:
+        call_url = f"{ow_forecast_url}appid={api_key}&q={city_for_api}&units=metric&lang=vi"
+        try:
+            response = requests.get(call_url)
+            data = response.json()
+
+            if data["cod"] == "200":
+                forecast_text = f"\n--- Dự báo 5 ngày cho {city_name} ---\n\n" # Thêm dấu cách và tiêu đề
+
+                daily_forecasts = {}
+                for item in data['list']:
+                    date_time = item['dt_txt']
+                    date = date_time.split(' ')[0]
+
+                    if date not in daily_forecasts:
+                        daily_forecasts[date] = []
+                    daily_forecasts[date].append(item)
+
+                for date, forecasts in daily_forecasts.items():
+                    forecast_text += f"Ngày {date}:\n"
+                    min_temp = float('inf')
+                    max_temp = float('-inf')
+                    descriptions = set()
+
+                    for f_item in forecasts:
+                        min_temp = min(min_temp, f_item['main']['temp_min'])
+                        max_temp = max(max_temp, f_item['main']['temp_max'])
+                        descriptions.add(f_item['weather'][0]['description'].capitalize())
+
+                    forecast_text += f"   Nhiệt độ: {min_temp:.1f}°C - {max_temp:.1f}°C\n"
+                    forecast_text += f"   Thời tiết: {', '.join(descriptions)}\n\n"
+
+                return forecast_text
+            elif data["cod"] == "404":
+                continue
+            else:
+                print(f"Lỗi API dự báo ({data['cod']}): {data['message']}")
+                continue
+        except requests.exceptions.ConnectionError:
+            print("Lỗi kết nối mạng khi gọi API dự báo.")
+            continue
+        except Exception as e:
+            print(f"Đã xảy ra lỗi không mong muốn khi lấy dự báo: {e}")
+            continue
+
+    return f"Không thể lấy dữ liệu dự báo cho '{city_name}'. Vui lòng thử lại."
+def initialize_app_data():
+    global VIETNAM_LOCATIONS # Khai báo để có thể gán giá trị cho biến toàn cục
+
+    if not os.path.exists(CITY_LIST_GZ_FILE):
+        messagebox.showinfo("Thông báo", "Tệp danh sách thành phố chưa tồn tại. Đang tiến hành tải xuống...")
+        if not download_city_list_file(CITY_LIST_DOWNLOAD_URL, CITY_LIST_GZ_FILE):
+            messagebox.showerror("Lỗi tải tệp", "Không thể tải tệp danh sách thành phố. Vui lòng kiểm tra kết nối internet hoặc thử lại sau.")
+
+    VIETNAM_LOCATIONS = extract_vietnam_cities()
+    if not VIETNAM_LOCATIONS:
+        messagebox.showwarning("Cảnh báo", f"Không thể tải danh sách các tỉnh/thành phố của Việt Nam từ '{CITY_LIST_GZ_FILE}'. "
+                                         "Vui lòng kiểm tra file đã tải xuống hoặc thử tải lại.")
+# --- Biến UI toàn cục (sẽ được khởi tạo trong create_weather_window) ---
+city_entry = None
+combined_weather_text_widget = None # Đã đổi tên và chức năng
+show_weather_button = None
+city_listbox = None
+province_listbox = None
+tinh_nang_10 = None # Cửa sổ Toplevel
+# --- Hàm xử lý sự kiện UI (di chuyển ra ngoài create_weather_window) ---
+def update_ui_with_all_results(current_weather_info, forecast_info):
+    global combined_weather_text_widget, show_weather_button, city_entry, city_listbox, province_listbox
+
+    full_output = f"{current_weather_info}\n{forecast_info}" # Gộp cả hai thông tin
+
+    combined_weather_text_widget.config(state=tk.NORMAL)
+    combined_weather_text_widget.delete(1.0, tk.END)
+    combined_weather_text_widget.insert(tk.END, full_output)
+    combined_weather_text_widget.config(state=tk.DISABLED)
+ 
+    show_weather_button.config(state=tk.NORMAL)
+    city_entry.config(state=tk.NORMAL)
+    city_listbox.config(state=tk.NORMAL)
+    province_listbox.config(state=tk.NORMAL)
+def fetch_and_update(city_name):
+    global root # Cần truy cập root cho after()
+    current_weather = get_weather_data(city_name, API_KEYS)
+    forecast_data = get_forecast_data(city_name, API_KEYS)
+    root.after(0, update_ui_with_all_results, current_weather, forecast_data)
+def show_all_weather_data_async():
+    global city_entry, combined_weather_text_widget, show_weather_button, city_listbox, province_listbox
+
+    city_name = city_entry.get().strip()
+    if not city_name:
+        messagebox.showwarning("Lỗi", "Vui lòng nhập tên thành phố.")
+        return
+
+    # Hiển thị thông báo đang tải trong ô kết hợp
+    combined_weather_text_widget.config(state=tk.NORMAL)
+    combined_weather_text_widget.delete(1.0, tk.END)
+    combined_weather_text_widget.insert(tk.END, "Đang tải thời tiết hiện tại và dữ liệu dự báo...")
+    combined_weather_text_widget.config(state=tk.DISABLED)
+
+    show_weather_button.config(state=tk.DISABLED)
+    city_entry.config(state=tk.DISABLED)
+    city_listbox.config(state=tk.DISABLED)
+    province_listbox.config(state=tk.DISABLED)
+    
+    thread = threading.Thread(target=fetch_and_update, args=(city_name,))
+    thread.start()
+def select_from_list(event, listbox_widget):
+    global city_entry
+    selected_indices = listbox_widget.curselection()
+    if selected_indices:
+        selected_item = listbox_widget.get(selected_indices[0])
+        city_entry.delete(0, tk.END)
+        city_entry.insert(0, selected_item)
+        show_all_weather_data_async() # Tự động tìm kiếm khi chọn
+def clear_search_history():
+    global city_listbox
+    if os.path.exists(VALID_CITIES_FILE):
+        os.remove(VALID_CITIES_FILE)
+        city_listbox.delete(0, tk.END)
+        messagebox.showinfo("Thông báo", "Lịch sử tìm kiếm đã được xóa.")
+    else:
+        messagebox.showinfo("Thông báo", "Không có lịch sử tìm kiếm để xóa.")
+# --- Hàm tạo cửa sổ chính ---
+def create_weather_window(root):
+    """Tạo cửa sổ ứng dụng thời tiết."""
+    global city_entry, combined_weather_text_widget, show_weather_button
+    global city_listbox, province_listbox, tinh_nang_10
+
+    tinh_nang_10 = tk.Toplevel(root)
+    tinh_nang_10.title("10. Thời tiết")
+    tinh_nang_10.geometry("900x600") # Kích thước mặc định
+    tinh_nang_10.resizable(True, True) # Cho phép thay đổi kích thước
+
+    # Áp dụng theme từ ttkthemes cho cửa sổ con
+    style = ThemedStyle(tinh_nang_10)
+    style.set_theme(current_theme)
+
+    # Đặt màu nền cho cửa sổ dựa trên theme
+    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
+    tinh_nang_10.config(bg=theme_bg_color)
+
+    # Cấu hình grid cho cửa sổ con
+    tinh_nang_10.grid_rowconfigure(0, weight=1)
+    tinh_nang_10.grid_columnconfigure(0, weight=1) # Cột bên trái (danh sách)
+    tinh_nang_10.grid_columnconfigure(1, weight=2) # Cột bên phải (hiển thị thời tiết)
+
+    # --- Panel bên trái (Lịch sử và Tỉnh/TP Việt Nam) ---
+    left_panel = ttk.Frame(tinh_nang_10, padding="10", style='TFrame')
+    left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+    left_panel.grid_rowconfigure(1, weight=1) # Cho listbox chiếm không gian
+    left_panel.grid_rowconfigure(4, weight=1) # Cho listbox chiếm không gian
+    left_panel.grid_columnconfigure(0, weight=1)
+
+    ttk.Label(left_panel, text="Lịch sử tìm kiếm:", font=("Arial", 12, "bold")).grid(row=0, column=0, pady=5, sticky="ew")
+    city_listbox = tk.Listbox(left_panel, height=8, font=("Arial", 10), selectmode=tk.SINGLE)
+    city_listbox.grid(row=1, column=0, pady=5, sticky="nsew")
+    for city in load_valid_cities():
+        city_listbox.insert(tk.END, city)
+    city_listbox.bind("<<ListboxSelect>>", lambda event: select_from_list(event, city_listbox))
+
+    ttk.Button(left_panel, text="Xóa Lịch sử", command=clear_search_history, style='TButton').grid(row=2, column=0, pady=5, sticky="ew")
+
+    ttk.Label(left_panel, text="Tỉnh/thành phố Việt Nam:", font=("Arial", 12, "bold")).grid(row=3, column=0, pady=10, sticky="ew")
+    province_listbox = tk.Listbox(left_panel, height=8, font=("Arial", 10), selectmode=tk.SINGLE)
+    province_listbox.grid(row=4, column=0, pady=5, sticky="nsew")
+    for province in VIETNAM_LOCATIONS:
+        province_listbox.insert(tk.END, province)
+    province_listbox.bind("<<ListboxSelect>>", lambda event: select_from_list(event, province_listbox))
+
+    # --- Panel bên phải (Nhập liệu và Hiển thị Thời tiết) ---
+    right_panel = ttk.Frame(tinh_nang_10, padding="10", style='TFrame')
+    right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+    right_panel.grid_rowconfigure(2, weight=1) # Cho ô hiển thị thời tiết tổng hợp
+    right_panel.grid_columnconfigure(0, weight=1)
+
+    # Khung chứa thanh tìm kiếm và nút tìm kiếm
+    input_frame = ttk.Frame(right_panel, style='TFrame')
+    input_frame.grid(row=0, column=0, pady=10, sticky="ew")
+    input_frame.grid_columnconfigure(0, weight=3) # Cho thanh nhập liệu chiếm nhiều không gian hơn
+    input_frame.grid_columnconfigure(1, weight=1) # Cho nút tìm kiếm
+
+    ttk.Label(input_frame, text="Nhập tên thành phố:", font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0,5), sticky="ew")
+    city_entry = ttk.Entry(input_frame, font=("Arial", 12))
+    city_entry.grid(row=1, column=0, pady=5, padx=(0, 5), sticky="ew")
+    city_entry.bind("<Return>", lambda event: show_all_weather_data_async()) # Cho phép Enter để tìm
+
+    show_weather_button = ttk.Button(input_frame, text="Xem Thời tiết", command=show_all_weather_data_async,
+                                     style='TButton', cursor="hand2")
+    show_weather_button.grid(row=1, column=1, pady=5, sticky="ew")
+
+    # Ô hiển thị kết hợp thời tiết hiện tại và dự báo
+    combined_weather_frame = ttk.Frame(right_panel, relief="solid", borderwidth=1)
+    combined_weather_frame.grid(row=2, column=0, pady=10, sticky="nsew")
+    combined_weather_frame.grid_rowconfigure(0, weight=1)
+    combined_weather_frame.grid_columnconfigure(0, weight=1)
+
+    combined_weather_text_widget = tk.Text(combined_weather_frame, font=("Arial", 10), wrap=tk.WORD,
+                                   padx=10, pady=10, state=tk.DISABLED)
+    combined_weather_text_widget.grid(row=0, column=0, sticky="nsew")
+
+    combined_weather_scrollbar = ttk.Scrollbar(combined_weather_frame, orient="vertical", command=combined_weather_text_widget.yview)
+    combined_weather_scrollbar.grid(row=0, column=1, sticky="ns")
+    combined_weather_text_widget.config(yscrollcommand=combined_weather_scrollbar.set)
+def thoi_tiet():
+    if root is None:
+        return 
+    initialize_app_data()
+    create_weather_window(root)
+###################################################################################
 CONFIG_FILE = "thiet_lap_giao_dien.ini"
 available_themes = ["equilux", "radiance", "arc", "breeze", "ubuntu", "yaru", "plastik",
                     "clam", "alt", "default", "classic", "adapta", "aquativo", "clearlooks",
@@ -1956,6 +2260,258 @@ def on_toplevel_close(window): # Xử lý khi một cửa sổ Toplevel bị đ�
         open_toplevels.remove(window)
     window.destroy()
 ###################################################################################
+loading_frame = None
+loading_label = None
+cache_file = "periodic_table_data.json"
+periodic_elements = []
+periodic_table_frame = None
+info_frame = None
+info_text_area = None
+def get_color_by_category(category):
+    """Trả về mã màu HEX dựa trên loại nguyên tố."""
+    colors = {
+        "alkali metal": "#FF9999",         # Kim loại kiềm (Đỏ nhạt)
+        "alkaline earth metal": "#FFCC99", # Kim loại kiềm thổ (Cam nhạt)
+        "metalloid": "#FFFF99",            # Á kim (Vàng nhạt)
+        "nonmetal": "#CCFFCC",             # Phi kim (Xanh lá nhạt)
+        "noble gas": "#99CCFF",            # Khí hiếm (Xanh dương nhạt)
+        "halogen": "#CC99FF",              # Halogen (Tím nhạt)
+        "transition metal": "#FFCCCC",     # Kim loại chuyển tiếp (Hồng)
+        "post-transition metal": "#CCCCFF", # Kim loại sau chuyển tiếp (Oải hương)
+        "lanthanide": "#FFCCFF",           # Lanthanide (Hồng cánh sen nhạt)
+        "actinide": "#FF99FF",             # Actinide (Hồng đậm hơn)
+        # Các loại "unknown" được gán cùng một màu xám nhạt để nhất quán
+        "unknown, probably transition metal": "#D3D3D3",
+        "unknown, probably post-transition metal": "#D3D3D3",
+        "unknown, probably metalloid": "#D3D3D3",
+        "unknown, predicted to be noble gas": "#D3D3D3"}
+    global theme_bg_color
+    return colors.get(category,theme_bg_color) 
+def display_element_info(element):
+    """Hiển thị thông tin chi tiết của một nguyên tố trong info_text_area."""
+    info_text = (
+        f"Tên: {element.get('name', 'N/A')}\n"
+        f"Ký hiệu: {element.get('symbol', 'N/A')}\n"
+        f"Số Nguyên Tử: {element.get('number', 'N/A')}\n"
+        f"Khối Lượng Nguyên Tử: {element.get('atomic_mass', 'N/A')} u\n"
+        f"Loại: {element.get('category', 'N/A').replace('_', ' ').title()}\n"
+        f"Chu Kỳ: {element.get('period', 'N/A')}\n"
+        f"Nhóm: {element.get('group', 'N/A')}\n"
+        f"Điện Âm (Pauling): {element.get('electronegativity_pauling', 'N/A')}\n"
+        f"Mật Độ: {element.get('density', 'N/A')} g/cm³\n"
+        f"Điểm Nóng Chảy: {element.get('melt', 'N/A')} K\n"
+        f"Điểm Sôi: {element.get('boil', 'N/A')} K\n"
+        f"Người Phát Hiện: {element.get('discovered_by', 'N/A')}"
+    )
+
+    info_text_area.config(state=NORMAL) # Cho phép chỉnh sửa tạm thời để cập nhật nội dung
+    info_text_area.delete(1.0, END)      # Xóa nội dung cũ
+    info_text_area.insert(END, info_text) # Chèn thông tin mới
+    info_text_area.config(state=DISABLED) # Khóa lại sau khi cập nhật
+def add_category_legend():
+    """Thêm chú giải màu sắc cho các loại nguyên tố."""
+    global theme_bg_color
+    legend_frame = Frame(info_frame, bg= theme_bg_color, pady=10)
+    legend_frame.grid(row=2, column=0, sticky="ew")
+
+    Label(legend_frame, text="Chú Giải Màu Sắc:", font=("Arial", 11, "bold"), bg="#E0E0E0").grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
+
+    # Định nghĩa các loại nguyên tố và tên hiển thị tiếng Việt
+    categories = {
+        "kim loại kiềm": "alkali metal",
+        "kim loại kiềm thổ": "alkaline earth metal",
+        "á kim": "metalloid",
+        "phi kim": "nonmetal",
+        "khí hiếm": "noble gas",
+        "halogen": "halogen",
+        "kim loại chuyển tiếp": "transition metal",
+        "kim loại sau chuyển tiếp": "post-transition metal",
+        "lanthanide": "lanthanide",
+        "actinide": "actinide",
+        "không xác định": "unknown, probably transition metal" # Dùng một màu đại diện cho unknown
+    }
+
+    row_idx = 1
+    for display_name, category_key in categories.items():
+        color = get_color_by_category(category_key)
+        
+        # Ô màu sắc
+        Label(legend_frame, bg=color, width=3, height=1, bd=1, relief="solid").grid(row=row_idx, column=0, padx=5, pady=1, sticky="w")
+        # Nhãn văn bản
+        Label(legend_frame, text=display_name.title(), font=("Arial", 9), bg= theme_bg_color).grid(row=row_idx, column=1, padx=0, pady=1, sticky="w")
+        row_idx += 1
+
+    legend_frame.grid_columnconfigure(1, weight=1)
+def display_periodic_table():
+    """Hiển thị các nút nguyên tố lên bảng tuần hoàn."""
+    min_cell_size = 50 
+    for i in range(10): # Có thể cần nhiều hàng hơn cho lanthanides/actinides
+        periodic_table_frame.grid_rowconfigure(i, weight=1, minsize=min_cell_size)
+    for i in range(18): # 18 cột cho các nhóm
+        periodic_table_frame.grid_columnconfigure(i, weight=1, minsize=min_cell_size)
+
+    # Định nghĩa vị trí bắt đầu cho Lanthanides và Actinides nếu hiển thị riêng
+    lant_row_start = 8
+    act_row_start = 9
+    lant_act_col_offset = 3 # Cột bắt đầu tương đối (cột 3 là cột f-block đầu tiên)
+
+    for element in periodic_elements:
+        symbol = element['symbol']
+        atomic_number = element['number']
+        category = element['category']
+        xpos = element['xpos']
+        ypos = element['ypos']
+
+        background_color = get_color_by_category(category)
+
+        # Điều chỉnh vị trí cho Lanthanides và Actinides
+        if category in ["lanthanide", "actinide"]:
+            if category == "lanthanide":
+                row = lant_row_start
+                col = lant_act_col_offset + (atomic_number - 57) 
+            else: # actinide
+                row = act_row_start
+                col = lant_act_col_offset + (atomic_number - 89)
+        else:
+            row = ypos - 1
+            col = xpos - 1
+        element_button = Button(periodic_table_frame,
+                                text=f"{atomic_number}\n{symbol}",
+                                command=lambda e=element: display_element_info(e),
+                                bg=background_color,
+                                fg="black",
+                                font=("Arial", 9, "bold"),
+                                bd=1, relief="raised")
+        element_button.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
+
+    # Thêm các nút giữ chỗ cho Lanthanides và Actinides ở vị trí ban đầu (nếu cần)
+    placeholder_la_button = Button(periodic_table_frame, text="57-71\nLa-Lu", bg="#D0D0D0", fg="black",
+                                   font=("Arial", 9, "bold"),
+                                   bd=1, relief="raised")
+    placeholder_la_button.grid(row=5, column=2, padx=1, pady=1, sticky="nsew")
+
+    placeholder_ac_button = Button(periodic_table_frame, text="89-103\nAc-Lr", bg="#D0D0D0", fg="black",
+                                   font=("Arial", 9, "bold"),
+                                   bd=1, relief="raised")
+    placeholder_ac_button.grid(row=6, column=2, padx=1, pady=1, sticky="nsew")
+def load_or_restore_element_data(url, current_loading_label, current_root):
+
+    global periodic_elements
+
+    if os.path.exists(cache_file):
+        try:
+            current_loading_label.config(text="Đang tải dữ liệu từ cache...")
+            current_root.update_idletasks()
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if 'elements' in data and isinstance(data['elements'], list):
+                periodic_elements = sorted(data['elements'], key=lambda x: x['number'])
+                current_loading_label.config(text="Đã tải dữ liệu từ cache.")
+                return True
+            else:
+                print("Dữ liệu cache không hợp lệ, sẽ tải lại.")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Lỗi khi đọc file cache: {e}. Sẽ thử tải lại từ internet.")
+
+    current_loading_label.config(text="Đang tải dữ liệu từ internet...")
+    current_root.update_idletasks()
+    try:
+        response = requests.get(url, stream=True, timeout=10)
+        response.raise_for_status()
+        
+        json_data_chunks = []
+        for chunk in response.iter_content(chunk_size=8192):
+            json_data_chunks.append(chunk)
+
+        data = json.loads(b''.join(json_data_chunks).decode('utf-8'))
+        periodic_elements = sorted(data['elements'], key=lambda x: x['number'])
+
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            print(f"Đã lưu dữ liệu vào cache: {cache_file}")
+        except IOError as e:
+            print(f"Lỗi khi lưu dữ liệu vào cache: {e}")
+
+        return True
+
+    except requests.exceptions.RequestException as e:
+        print(f"Lỗi khi tải dữ liệu từ internet: {e}")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"Lỗi giải mã JSON từ internet: {e}")
+        return False
+def create_widgets(current_root, current_loading_frame):
+    """Tạo và bố trí các widget chính của ứng dụng."""
+    global periodic_table_frame, info_frame, info_text_area, theme_bg_color
+
+    current_loading_frame.destroy()
+
+    current_root.grid_rowconfigure(0, weight=1)
+    current_root.grid_columnconfigure(0, weight=4)
+    current_root.grid_columnconfigure(1, weight=1)
+
+    periodic_table_frame = Frame(current_root, padx=10, pady=10) 
+    periodic_table_frame.config(bg = theme_bg_color) # Đặt màu nền cho khung bảng tuần hoàn
+    periodic_table_frame.grid(row=0, column=0, sticky="nsew")
+
+    info_frame = Frame(current_root, width=300, padx=10, pady=10, bd=2, relief="groove")
+    info_frame.config(bg=theme_bg_color) # Đặt màu nền cho khung thông tin
+    info_frame.grid(row=0, column=1, sticky="nsew")
+    info_frame.grid_propagate(False)
+
+    info_frame.grid_rowconfigure(1, weight=1)
+    info_frame.grid_columnconfigure(0, weight=1)
+
+    # Label và ScrolledText có thể không cần đặt bg/fg nếu muốn theme kiểm soát hoàn toàn
+    info_label = Label(info_frame, text="Thông tin Nguyên tố", font=("Arial", 14, "bold"))
+    info_label.config(bg=theme_bg_color, fg=style.lookup("TLabel", "foreground")) # Đặt màu nền và chữ cho nhãn
+    info_label.grid(row=0, column=0, pady=10)
+
+    info_text_area = scrolledtext.ScrolledText(info_frame, wrap=WORD, font=("Arial", 10), width=35, height=25,
+                                             bd=1, relief="solid", padx=5, pady=5)
+    info_text_area.grid(row=1, column=0, pady=5, sticky="nsew")
+    info_text_area.config(bg=style.lookup("TText", "background"), fg=style.lookup("TText", "foreground")) # Lấy màu nền và chữ từ theme cho Text
+    info_text_area.config(state=DISABLED)
+
+    display_periodic_table()
+    add_category_legend()
+def bang_tuan_hoan():
+    global loading_frame, loading_label, root, theme_bg_color, style
+    if not root: # 2 Dòng này nhằm đảm bảo của sổ chính tồn tại 
+        return
+    # Tạo cửa sổ phụ cho tính năng 11     
+    tinh_nang_12 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
+    tinh_nang_12.title("12. Bảng tuần hoàn hóa học") # Thiết lập tên cho cửa sổ
+    tinh_nang_12.resizable(False, False) # Loại bỏ khả năng thu phóng của cửa sổ
+    # Đoạn này dùng để thay đổi giao diện 
+    style = ThemedStyle(tinh_nang_12)
+    style.set_theme(current_theme)
+    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
+    tinh_nang_12.config(bg=theme_bg_color)
+
+    loading_frame = Frame(tinh_nang_12)
+    loading_frame.config(bg=theme_bg_color) # Đặt màu nền cho khung tải 
+    loading_frame.pack(expand=True, fill=BOTH)
+
+    loading_label = Label(loading_frame, text="Đang khởi tạo...", font=("Arial", 16, "bold"))
+    loading_label.config(bg=theme_bg_color, fg=style.lookup("TLabel", "foreground"))
+    loading_label.pack(pady=50)
+
+    tinh_nang_12.update_idletasks()
+
+    data_loaded_successfully = load_or_restore_element_data(
+        "https://raw.githubusercontent.com/Bowserinator/Periodic-Table-JSON/master/PeriodicTableJSON.json",
+        loading_label, tinh_nang_12
+    )
+
+    if not data_loaded_successfully:
+        messagebox.showerror("Lỗi", "Không thể tải hoặc khôi phục dữ liệu bảng tuần hoàn. Vui lòng kiểm tra kết nối internet hoặc file cache.")
+        tinh_nang_12.destroy()
+        return
+    
+    create_widgets(tinh_nang_12, loading_frame)
+###################################################################################
 def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
     if not root: # 2 Dòng này nhằm đảm bảo cảu sổ chính tồn tại 
         return
@@ -2003,9 +2559,9 @@ if __name__ == "__main__":
     ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="8. Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
  #   ttk.Button(frm, text="9. Máy phát nhạc và video ", command=may_phat_nhac_va_video).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
-   #ttk.Button(frm, text="10. Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="10. Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="11.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
-   # ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="13. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
 
     root.mainloop()
