@@ -28,6 +28,7 @@ import folium
 import pygame
 from googletrans import Translator, LANGUAGES
 import asyncio 
+import sys
 # Các tính năng của ứng dụng
 du_lieu_ghi_chu = "notes.ini"
 def load_notes(): # Tải ghi chú từ file ini
@@ -51,8 +52,12 @@ def clock(): # Tinh năng 1: Lịch và đồng hồ
         return
     # Tạo cửa sổ phụ cho tính năng 1
     tinh_nang_1 = tk.Toplevel(root)
-    tinh_nang_1.title("Lịch và đồng hồ")
+    tinh_nang_1.title("1.Đổng hồ và lịch")
     tinh_nang_1.resizable(False, False)
+    try:
+        tinh_nang_1.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_1)
     style.set_theme(current_theme)
@@ -74,13 +79,21 @@ def clock(): # Tinh năng 1: Lịch và đồng hồ
     note_entry.config(bg=theme_bg_color)
     note_entry.grid(column=0, row=1, pady=5)
 
+    # Thêm Label để hiển thị thông báo trạng thái
+    status_label = ttk.Label(frame_left, text="", font=("Helvetica", 10), foreground="green")
+    status_label.grid(column=0, row=2, pady=2, sticky="w")
+
     def save_note():
         selected_date = cal.get_date()
         note_text = note_entry.get("1.0", tk.END).strip()
         save_notes(selected_date, note_text)
         print(f"Ghi chú cho {selected_date}: {note_text}")
+        status_label.config(text=f"Đã lưu ghi chú cho ngày {selected_date}!") # Cập nhật thông báo
+        # Xóa thông báo sau vài giây
+        tinh_nang_1.after(3000, lambda: status_label.config(text=""))
 
-    ttk.Button(frame_left, text="Lưu ghi chú", command=save_note).grid(column=0, row=2, pady=10)
+
+    ttk.Button(frame_left, text="Lưu ghi chú", command=save_note).grid(column=0, row=3, pady=10) # Thay đổi row của nút
 
     hom_nay = ttk.Label(frame_right, text=f"Ngày hôm nay: {today}", anchor="center", font=("Helvetica", 16))
     hom_nay.grid(column=0, row=0, columnspan=2, pady=5)
@@ -107,6 +120,7 @@ def clock(): # Tinh năng 1: Lịch và đồng hồ
         note_entry.delete("1.0", tk.END)
         if selected_date in notes and 'note' in notes[selected_date]:
             note_entry.insert("1.0", notes[selected_date]['note'])
+        status_label.config(text="") # Xóa thông báo khi chọn ngày khác
 
     cal.bind("<<CalendarSelected>>", lambda event: update_note())
 
@@ -116,13 +130,19 @@ def clock(): # Tinh năng 1: Lịch và đồng hồ
 ###################################################################################
 recording = False
 video_writer = None
+status_label = None
 def camera(): # Tính năng 2: Máy ảnh
     global recording, video_writer
     if not root:
         return
     # Tạo cửa sổ phụ cho tính năng 1
     tinh_nang_2 = tk.Toplevel(root)
+    tinh_nang_2.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_2))
     tinh_nang_2.title("2. Máy ảnh")
+    try:
+        tinh_nang_2.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     tinh_nang_2.resizable(False, False)
     # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_2)
@@ -131,11 +151,24 @@ def camera(): # Tính năng 2: Máy ảnh
     tinh_nang_2.config(bg=theme_bg_color)
 
     cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        # Nếu camera không mở được, hiển thị lỗi và đóng cửa sổ
+        messagebox.showerror("Lỗi Camera", "Không thể mở camera. Vui lòng kiểm tra kết nối hoặc quyền truy cập.", parent=tinh_nang_2)
+        tinh_nang_2.destroy()
+        return
 
-    tinh_nang_2 = ttk.Frame(tinh_nang_2, padding=20)
-    tinh_nang_2.grid()
-    label = Label(tinh_nang_2)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    frame_container = ttk.Frame(tinh_nang_2, padding=20)
+    frame_container.grid(row=0, column=0, columnspan=2)
+
+    label = ttk.Label(frame_container)
     label.grid(column=0, row=0, columnspan=2, sticky="ew")
+
+    # Tạo thanh trạng thái và đặt nó ngay dưới label hiển thị video (row=1)
+    status_label = ttk.Label(tinh_nang_2, text="Sẵn sàng", anchor="w", font=("Segoe UI", 10), background=theme_bg_color)
+    status_label.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
 
     def update_frame():
         ret, frame = cap.read()
@@ -143,12 +176,20 @@ def camera(): # Tính năng 2: Máy ảnh
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame)
             img_tk = ImageTk.PhotoImage(image=img)
+            
             label.img_tk = img_tk
             label.config(image=img_tk)
+            
             if recording and video_writer is not None:
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 video_writer.write(frame_bgr)
-        root.after(10, update_frame)
+        
+        if tinh_nang_2.winfo_exists():
+            tinh_nang_2.after(10, update_frame)
+        else:
+            cap.release()
+            if video_writer is not None:
+                video_writer.release()
 
     def on_closing():
         cap.release()
@@ -161,6 +202,8 @@ def camera(): # Tính năng 2: Máy ảnh
         if ret:
             filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".jpg"
             cv2.imwrite(filename, frame)
+            status_label.config(text=f"Ảnh đã được lưu: {filename}", foreground="green")
+            tinh_nang_2.after(3000, lambda: status_label.config(text="")) # Xóa thông báo sau 3 giây
             print(f"Ảnh đã được lưu: {filename}")
 
     def quay_video():
@@ -169,24 +212,47 @@ def camera(): # Tính năng 2: Máy ảnh
             recording = True
             filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".avi"
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            video_writer = cv2.VideoWriter(filename, fourcc, 20.0, (640, 480))
+            
+            video_writer = cv2.VideoWriter(filename, fourcc, 20.0, (frame_width, frame_height))
+            
+            if not video_writer.isOpened():
+                status_label.config(text="Lỗi: Không thể tạo file ghi video. Kiểm tra quyền truy cập.", foreground="red")
+                tinh_nang_2.after(3000, lambda: status_label.config(text=""))
+                recording = False
+                video_writer = None
+                return
+
+            video_button.config(text="Dừng quay") # Thay đổi tên nút
+            # Không hiển thị thông báo trên status bar khi quay video
             print(f"Bắt đầu quay video: {filename}")
         else:
             recording = False
             if video_writer is not None:
                 video_writer.release()
+                # Không hiển thị thông báo trên status bar khi dừng quay video
                 print("Dừng quay video")
             video_writer = None
+            video_button.config(text="Quay video") # Thay đổi tên nút về trạng thái ban đầu
 
     def mo_kho_luu_tru():
-        os.startfile(os.getcwd())
+        try:
+            path = os.getcwd()
+            os.startfile(path)
+            status_label.config(text=f"Đang mở kho lưu trữ: {path}", foreground="black")
+            tinh_nang_2.after(3000, lambda: status_label.config(text=""))
+        except Exception as e:
+            status_label.config(text=f"Lỗi: Không thể mở kho lưu trữ: {e}", foreground="red")
+            tinh_nang_2.after(3000, lambda: status_label.config(text=""))
 
-    ttk.Button(tinh_nang_2, text="Chụp ảnh", command=chup_anh).grid(column=0, row=1, columnspan=2, sticky="ew")
-    ttk.Button(tinh_nang_2, text="Quay video", command=quay_video).grid(column=0, row=2, columnspan=2, sticky="ew")
-    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=3, columnspan=2, sticky="ew")
+    ttk.Button(tinh_nang_2, text="Chụp ảnh", command=chup_anh).grid(column=0, row=2, columnspan=2, sticky="ew", padx=10, pady=2)
+    video_button = ttk.Button(tinh_nang_2, text="Quay video", command=quay_video)
+    video_button.grid(column=0, row=3, columnspan=2, sticky="ew", padx=10, pady=2)
+    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=4, columnspan=2, sticky="ew", padx=10, pady=2) # Thay đổi row của nút kho lưu trữ
 
-    tinh_nang_2.winfo_toplevel().protocol("WM_DELETE_WINDOW", on_closing)
+    # tinh_nang_2.winfo_toplevel().protocol("WM_DELETE_WINDOW", on_closing)
     update_frame()
+    open_toplevels.append(tinh_nang_2)
+    tinh_nang_2.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_2))
 ###################################################################################
 def gui_thu(): # Tính năng 3: Gửi thư 
     SENDER_EMAIL = "ungdungthu3@gmail.com"
@@ -230,6 +296,10 @@ def gui_thu(): # Tính năng 3: Gửi thư
     tinh_nang_3 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
     tinh_nang_3.title("3. Gửi thư") # Thiết lập tên cho cửa sổ
     tinh_nang_3.grid() # Thiết lập kích thước
+    try:
+        tinh_nang_3.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_3)
     style.set_theme(current_theme)
@@ -262,546 +332,232 @@ def gui_thu(): # Tính năng 3: Gửi thư
     # Cấu hình để các widget co giãn khi cửa sổ thay đổi kích thước
     tinh_nang_3.grid_rowconfigure(3, weight=1)
     tinh_nang_3.grid_columnconfigure(1, weight=1)
+    open_toplevels.append(tinh_nang_3)
+    tinh_nang_3.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_3))
 ###################################################################################
-def may_tinh(): # Thêm các tham số cần thiết
-    tinh_nang_4 = tk.Toplevel(root)
-    tinh_nang_4.title("4.Máy tính")
+def doc_dien_tro():
+    if not root: # 2 Dòng này nhằm đảm bảo của sổ chính tồn tại 
+        return
+    # Tạo cửa sổ phụ cho tính năng 11     
+    tinh_nang_4 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
+    tinh_nang_4.title("4.Đọc giá trị điện trở ")
+    try:
+        tinh_nang_4.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     tinh_nang_4.resizable(False, False)
-    # Áp dụng chủ đề cho cửa sổ Toplevel
+    # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_4)
     style.set_theme(current_theme)
     theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
     tinh_nang_4.config(bg=theme_bg_color)
+    tinh_nang_4.title("4.Đọc giá trị điện trở ")
+    tinh_nang_4.resizable(False, False)
 
-    expression = ""  # Biến này để lưu trữ biểu thức hiện tại
-    history = []     # Biến để lưu trữ lịch sử tính toán
+    # Cấu hình grid cho cửa sổ Toplevel chính
+    # Tạo 3 cột: 0 (label), 1 (combobox), 2 (button, but for frames only 1 wide)
+    tinh_nang_4.columnconfigure(0, weight=1) # Cột duy nhất để các frame trải dài
 
-    # Hàm cập nhật ô nhập liệu
-    def update_entry(value):
-        nonlocal expression
-        expression += str(value)
-        entry.delete(0, END)
-        entry.insert(0, expression)
-
-    # Hàm xóa toàn bộ ô nhập liệu
-    def clear_entry():
-        nonlocal expression
-        expression = ""
-        entry.delete(0, END)
-
-    # Hàm tính toán kết quả
-    def calculate_result():
-        nonlocal expression, history
-        try:
-            # Thay thế các ký hiệu toán học với người dùng thành toán tử Python
-            eval_expression = expression.replace("x", "*").replace(":", "/").replace(",", ".")
-            # Đánh giá biểu thức
-            result = str(eval(eval_expression))
-            entry.delete(0, tk.END)
-            entry.insert(0, result)
-            history.append(f"{expression} = {result}") # Thêm vào lịch sử
-            update_history_display() # Cập nhật hiển thị lịch sử
-            expression = result  # Lưu kết quả để có thể tiếp tục tính toán
-        except Exception as e:
-            # Hiển thị thông báo lỗi
-            messagebox.showerror("Lỗi", "Biểu thức không hợp lệ hoặc lỗi: " + str(e))
-            expression = ""  # Đặt lại biểu thức khi có lỗi
-
-    # Hàm xóa ký tự cuối cùng
-    def delete_last_char():
-        nonlocal expression
-        expression = expression[:-1]  # Cắt bỏ ký tự cuối cùng
-        entry.delete(0, tk.END)
-        entry.insert(0, expression)
-
-    # Hàm cập nhật hiển thị lịch sử
-    def update_history_display():
-        history_text.config(state=tk.NORMAL)
-        history_text.delete(1.0, tk.END)
-        for item in history:
-            history_text.insert(tk.END, item + "\n")
-        history_text.config(state=tk.DISABLED)
-
-    # --- Các hàm chuyển đổi đơn vị ---
-    # Ánh xạ từ tên đơn vị sang ký hiệu để hiển thị
-    unit_symbols = {
-        "mét": "m", "kilômét": "km", "centimét": "cm", "milimét": "mm",
-        "inch": "in", "feet": "ft", "yard": "yd",
-        "kilôgam": "kg", "gram": "g", "miligam": "mg", "pound": "lb", "ounce": "oz",
-        "Celsius": "°C", "Fahrenheit": "°F", "Kelvin": "K"
+    # Bảng giá trị màu cho điện trở
+    color_codes = {
+        "Đen": 0, "Nâu": 1, "Đỏ": 2, "Cam": 3, "Vàng": 4,
+        "Lục": 5, "Lam": 6, "Tím": 7, "Xám": 8, "Trắng": 9
     }
 
-    def convert_length():
+    multiplier_codes = {
+        "Đen": 1, "Nâu": 10, "Đỏ": 100, "Cam": 1000, "Vàng": 10000,
+        "Lục": 100000, "Lam": 1000000, "Tím": 10000000,
+        "Vàng Kim loại": 0.1, "Bạc Kim loại": 0.01
+    }
+
+    tolerance_codes = {
+        "Nâu": "±1%", "Đỏ": "±2%", "Lục": "±0.5%", "Lam": "±0.25%",
+        "Tím": "±0.1%", "Xám": "±0.05%",
+        "Vàng Kim loại": "±5%", "Bạc Kim loại": "±10%"
+    }
+
+    # Tạo các biến lưu trữ lựa chọn màu
+    band1_var = tk.StringVar(tinh_nang_4)
+    band2_var = tk.StringVar(tinh_nang_4)
+    band3_var = tk.StringVar(tinh_nang_4) # Dùng cho điện trở 5 vòng
+    multiplier_var = tk.StringVar(tinh_nang_4)
+    tolerance_var = tk.StringVar(tinh_nang_4)
+    num_bands_var = tk.StringVar(tinh_nang_4, value="4") # Mặc định 4 vòng
+
+    # Options cho Dropdown
+    band1_color_options = ["", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Xám", "Trắng"]
+    common_color_options = ["", "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Xám", "Trắng"]
+    multiplier_color_options = ["", "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Vàng Kim loại", "Bạc Kim loại"]
+    tolerance_color_options = ["", "Nâu", "Đỏ", "Lục", "Lam", "Tím", "Xám", "Vàng Kim loại", "Bạc Kim loại"]
+
+    # --- Phần hiển thị kết quả ---
+    result_frame = ttk.LabelFrame(tinh_nang_4, text="Kết Quả")
+    result_frame.grid(row=0, column=0, padx=15, pady=10, sticky="ew") # sticky="ew" để lấp đầy theo chiều ngang
+    result_frame.columnconfigure(0, weight=1) # Để label kết quả căn giữa
+
+    result_label_text = tk.StringVar(tinh_nang_4)
+    result_label_text.set("Giá trị điện trở sẽ hiển thị ở đây.")
+    result_label = ttk.Label(result_frame, textvariable=result_label_text, font=("Arial", 12, "bold"))
+    result_label.grid(row=0, column=0, padx=10, pady=10) # Grid trong result_frame
+
+    # --- Phần lựa chọn số vòng ---
+    band_selection_frame = ttk.LabelFrame(tinh_nang_4, text="Chọn Số Vòng Điện Trở")
+    band_selection_frame.grid(row=1, column=0, padx=15, pady=10, sticky="ew")
+    band_selection_frame.columnconfigure(0, weight=1) # Để radio buttons căn trái
+
+    ttk.Radiobutton(band_selection_frame, text="4 Vòng (Đầu số - Đầu số - Hệ số nhân - Dung sai)",
+                    variable=num_bands_var, value="4", command=lambda: update_bands_visibility("4")).grid(row=0, column=0, sticky="w", padx=10, pady=5)
+    ttk.Radiobutton(band_selection_frame, text="5 Vòng (Đầu số - Đầu số - Đầu số - Hệ số nhân - Dung sai)",
+                    variable=num_bands_var, value="5", command=lambda: update_bands_visibility("5")).grid(row=1, column=0, sticky="w", padx=10, pady=5)
+
+    # --- Phần nhập màu ---
+    color_input_frame = ttk.LabelFrame(tinh_nang_4, text="Chọn Màu Sắc Các Vòng")
+    color_input_frame.grid(row=2, column=0, padx=15, pady=10, sticky="ew")
+
+    # Cấu hình grid cho color_input_frame để các cột tự co giãn
+    color_input_frame.columnconfigure(0, weight=1) # Cột Label
+    color_input_frame.columnconfigure(1, weight=2) # Cột Combobox lớn hơn
+
+    # Hàm trợ giúp để tạo Label và Combobox
+    def create_color_band_widgets(parent_frame, label_text, textvariable, options):
+        label = ttk.Label(parent_frame, text=label_text, width=18)
+        dropdown = ttk.Combobox(parent_frame, textvariable=textvariable, values=options, state="readonly")
+        dropdown.set("") # Giá trị mặc định trống
+        return label, dropdown
+
+    # Tạo tất cả các widget và lưu trữ chúng (chưa grid vào đây)
+    band1_label, band1_dropdown = create_color_band_widgets(color_input_frame, "Vòng 1 (Số thứ 1):", band1_var, band1_color_options)
+    band2_label, band2_dropdown = create_color_band_widgets(color_input_frame, "Vòng 2 (Số thứ 2):", band2_var, common_color_options)
+    band3_label, band3_dropdown = create_color_band_widgets(color_input_frame, "Vòng 3 (Số thứ 3):", band3_var, common_color_options)
+    multiplier_label, multiplier_dropdown = create_color_band_widgets(color_input_frame, "Vòng Hệ số nhân:", multiplier_var, multiplier_color_options)
+    tolerance_label, tolerance_dropdown = create_color_band_widgets(color_input_frame, "Vòng Dung sai:", tolerance_var, tolerance_color_options)
+
+    # Hàm cập nhật hiển thị các vòng sử dụng grid_forget/grid
+    def update_bands_visibility(selected_bands):
+        # Reset tất cả các lựa chọn màu khi chuyển đổi số vòng
+        band1_var.set("")
+        band2_var.set("")
+        band3_var.set("")
+        multiplier_var.set("")
+        tolerance_var.set("")
+        result_label_text.set("Giá trị điện trở sẽ hiển thị ở đây.") # Reset kết quả
+
+        # Ẩn tất cả các widget của vòng màu trước
+        for widget_label, widget_dropdown in [
+            (band1_label, band1_dropdown),
+            (band2_label, band2_dropdown),
+            (band3_label, band3_dropdown),
+            (multiplier_label, multiplier_dropdown),
+            (tolerance_label, tolerance_dropdown)
+        ]:
+            widget_label.grid_forget()
+            widget_dropdown.grid_forget()
+
+        # Sau đó hiển thị lại theo thứ tự và điều kiện mong muốn
+        current_row = 0
+        band1_label.grid(row=current_row, column=0, padx=5, pady=2, sticky="w")
+        band1_dropdown.grid(row=current_row, column=1, padx=5, pady=2, sticky="ew")
+        current_row += 1
+
+        band2_label.grid(row=current_row, column=0, padx=5, pady=2, sticky="w")
+        band2_dropdown.grid(row=current_row, column=1, padx=5, pady=2, sticky="ew")
+        current_row += 1
+
+        if selected_bands == "5":
+            band3_label.grid(row=current_row, column=0, padx=5, pady=2, sticky="w")
+            band3_dropdown.grid(row=current_row, column=1, padx=5, pady=2, sticky="ew")
+            current_row += 1
+        
+        multiplier_label.grid(row=current_row, column=0, padx=5, pady=2, sticky="w")
+        multiplier_dropdown.grid(row=current_row, column=1, padx=5, pady=2, sticky="ew")
+        current_row += 1
+
+        tolerance_label.grid(row=current_row, column=0, padx=5, pady=2, sticky="w")
+        tolerance_dropdown.grid(row=current_row, column=1, padx=5, pady=2, sticky="ew")
+        current_row += 1 # Không dùng nữa nhưng giữ cho đủ
+
+    # Cập nhật hiển thị ban đầu dựa trên giá trị mặc định của num_bands_var
+    update_bands_visibility(num_bands_var.get())
+
+    def calculate_resistor_value():
         try:
-            value = float(length_input.get())
-            unit_from_name = length_unit_from.get()
-            unit_to_name = length_unit_to.get()
+            current_num_bands = num_bands_var.get()
 
-            # Chuyển đổi về mét
-            if unit_from_name == "m":
-                base_value = value
-            elif unit_from_name == "km":
-                base_value = value * 1000
-            elif unit_from_name == "cm":
-                base_value = value / 100
-            elif unit_from_name == "mm":
-                base_value = value / 1000
-            elif unit_from_name == "inch":
-                base_value = value * 0.0254
-            elif unit_from_name == "feet":
-                base_value = value * 0.3048
-            elif unit_from_name == "yard":
-                base_value = value * 0.9144
-            else:
-                base_value = value # fallback
+            # Lấy giá trị màu
+            val1_str = band1_var.get()
+            val2_str = band2_var.get()
+            mult_str = multiplier_var.get()
+            tol_str = tolerance_var.get()
 
-            # Chuyển đổi từ mét sang đơn vị đích
-            if unit_to_name == "m":
-                result = base_value
-            elif unit_to_name == "km":
-                result = base_value / 1000
-            elif unit_to_name == "cm":
-                result = base_value * 100
-            elif unit_to_name == "mm":
-                result = base_value * 1000
-            elif unit_to_name == "inch":
-                result = base_value / 0.0254
-            elif unit_to_name == "feet":
-                result = base_value / 0.3048
-            elif unit_to_name == "yard":
-                result = base_value / 0.9144
-            else:
-                result = base_value # fallback
-
-            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
-            display_unit_to_name = ""
-            for key, val in unit_symbols.items():
-                if val == unit_to_name:
-                    display_unit_to_name = key
-                    break
-            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
-                display_unit_to_name = unit_to_name
-
-            length_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho chiều dài.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
-
-    def convert_mass():
-        try:
-            value = float(mass_input.get())
-            unit_from_name = mass_unit_from.get()
-            unit_to_name = mass_unit_to.get()
-
-            # Chuyển đổi về kilogram
-            if unit_from_name == "kg":
-                base_value = value
-            elif unit_from_name == "g":
-                base_value = value / 1000
-            elif unit_from_name == "mg":
-                base_value = value / 1_000_000
-            elif unit_from_name == "pound":
-                base_value = value * 0.453592
-            elif unit_from_name == "ounce":
-                base_value = value * 0.0283495
-            else:
-                base_value = value
-
-            # Chuyển đổi từ kilogram sang đơn vị đích
-            if unit_to_name == "kg":
-                result = base_value
-            elif unit_to_name == "g":
-                result = base_value * 1000
-            elif unit_to_name == "mg":
-                result = base_value * 1_000_000
-            elif unit_to_name == "pound":
-                result = base_value / 0.453592
-            elif unit_to_name == "ounce":
-                result = base_value / 0.0283495
-            else:
-                result = base_value
+            # Kiểm tra các trường bắt buộc
+            if not val1_str or not val2_str or not mult_str or not tol_str:
+                messagebox.showerror("Lỗi", "Vui lòng chọn màu cho tất cả các vòng bắt buộc (Vòng 1, Vòng 2, Hệ số nhân, Dung sai).")
+                result_label_text.set("Lỗi: Vui lòng hoàn tất các lựa chọn.")
+                return
             
-            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
-            display_unit_to_name = ""
-            for key, val in unit_symbols.items():
-                if val == unit_to_name:
-                    display_unit_to_name = key
-                    break
-            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
-                display_unit_to_name = unit_to_name
+            if current_num_bands == "5" and not band3_var.get():
+                messagebox.showerror("Lỗi", "Bạn đã chọn điện trở 5 vòng. Vui lòng chọn màu cho Vòng 3.")
+                result_label_text.set("Lỗi: Vui lòng hoàn tất các lựa chọn.")
+                return
 
-            mass_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho khối lượng.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
+            # Kiểm tra Vòng 1 không được là Đen
+            if val1_str == "Đen":
+                messagebox.showerror("Lỗi", "Vòng 1 (số thứ nhất) không thể là màu Đen.")
+                result_label_text.set("Lỗi: Vòng 1 không hợp lệ.")
+                return
 
-    def convert_temperature():
-        try:
-            value = float(temp_input.get())
-            unit_from_name = temp_unit_from.get()
-            unit_to_name = temp_unit_to.get()
+            val1 = color_codes[val1_str]
+            val2 = color_codes[val2_str]
+            mult_val = multiplier_codes[mult_str]
+            tol_val = tolerance_codes[tol_str]
 
-            # Chuyển đổi về độ C
-            if unit_from_name == "C":
-                base_value = value
-            elif unit_from_name == "F":
-                base_value = (value - 32) * 5/9
-            elif unit_from_name == "K":
-                base_value = value - 273.15
-            else:
-                base_value = value
+            resistance = 0
+            if current_num_bands == "4":
+                resistance = (val1 * 10 + val2) * mult_val
+            else: # 5 vòng
+                val3_str = band3_var.get()
+                val3 = color_codes[val3_str]
+                resistance = (val1 * 100 + val2 * 10 + val3) * mult_val
 
-            # Chuyển đổi từ độ C sang đơn vị đích
-            if unit_to_name == "C":
-                result = base_value
-            elif unit_to_name == "F":
-                result = (base_value * 9/5) + 32
-            elif unit_to_name == "K":
-                result = base_value + 273.15
-            else:
-                result = base_value
+            # Chuyển đổi sang đơn vị phù hợp
+            display_value = ""
+            if resistance >= 1_000_000_000: # GigaOhm
+                display_value = f"{resistance / 1_000_000_000:.2f} GΩ"
+            elif resistance >= 1_000_000: # MegaOhm
+                display_value = f"{resistance / 1_000_000:.2f} MΩ"
+            elif resistance >= 1_000: # KiloOhm
+                display_value = f"{resistance / 1_000:.2f} kΩ"
+            elif resistance < 1: # Để xử lý các giá trị nhỏ hơn 1 Ohm (do hệ số nhân 0.1, 0.01)
+                if resistance * 1000 >= 1: # Nếu là miliOhm
+                    display_value = f"{resistance * 1000:.2f} mΩ"
+                elif resistance * 1_000_000 >= 1: # Nếu là microOhm
+                    display_value = f"{resistance * 1_000_000:.2f} µΩ"
+                else: # Giá trị quá nhỏ, vẫn hiển thị là Ohm
+                    display_value = f"{resistance:.2f} Ω"
+            else: # Ohm
+                display_value = f"{resistance:.2f} Ω"
 
-            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
-            display_unit_to_name = ""
-            for key, val in unit_symbols.items():
-                if val == unit_to_name:
-                    display_unit_to_name = key
-                    break
-            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
-                display_unit_to_name = unit_to_name
-                
-            temp_result_label.config(text=f"Kết quả: {result:.2f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho nhiệt độ.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
-
-    # --- Hàm tính điện trở từ vòng màu ---
-    def calculate_resistor():
-        colors = {
-            "Đen": 0, "Nâu": 1, "Đỏ": 2, "Cam": 3, "Vàng": 4,
-            "Lục": 5, "Lam": 6, "Tím": 7, "Xám": 8, "Trắng": 9
-        }
-        multiplier_colors = {
-            "Đen": 1, "Nâu": 10, "Đỏ": 100, "Cam": 1000, "Vàng": 10000,
-            "Lục": 100000, "Lam": 1000000, "Tím": 10000000,
-            "Vàng kim": 0.1, "Bạc": 0.01
-        }
-        tolerance_values = { # Sử dụng giá trị trực tiếp để tránh lỗi làm tròn
-            "Nâu": 1, "Đỏ": 2, "Lục": 0.5, "Lam": 0.25,
-            "Tím": 0.1, "Xám": 0.05, "Vàng kim": 5, "Bạc": 10
-        }
-
-        try:
-            band1 = resistor_band1.get()
-            band2 = resistor_band2.get()
-            multiplier_band = resistor_multiplier.get()
-            tolerance_band = resistor_tolerance.get()
-
-            num_bands = resistor_bands_var.get()
-
-            value_band1 = colors[band1]
-            value_band2 = colors[band2]
-
-            if num_bands == 4: # Điện trở 4 vòng
-                multiplier = multiplier_colors[multiplier_band]
-                tolerance_percent = tolerance_values[tolerance_band] # Lấy giá trị phần trăm trực tiếp
-
-                resistance = (value_band1 * 10 + value_band2) * multiplier
-                resistor_result_label.config(text=f"Điện trở: {resistance:.2f} Ω ± {tolerance_percent:.2f}%")
-
-            elif num_bands == 5: # Điện trở 5 vòng
-                band3 = resistor_band3_dropdown.get() # Lấy giá trị từ dropdown
-                value_band3 = colors[band3]
-                multiplier = multiplier_colors[multiplier_band]
-                tolerance_percent = tolerance_values[tolerance_band] # Lấy giá trị phần trăm trực tiếp
-
-                resistance = (value_band1 * 100 + value_band2 * 10 + value_band3) * multiplier
-                resistor_result_label.config(text=f"Điện trở: {resistance:.2f} Ω ± {tolerance_percent:.2f}%")
-            else:
-                messagebox.showerror("Lỗi", "Vui lòng chọn số vòng (4 hoặc 5).")
+            result_label_text.set(f"Giá trị: {display_value}\nDung sai: {tol_val}")
 
         except KeyError as e:
-            messagebox.showerror("Lỗi", f"Màu không hợp lệ: {e}. Vui lòng chọn màu từ danh sách.")
+            messagebox.showerror("Lỗi", f"Có vẻ bạn đã chọn một màu không hợp lệ hoặc thiếu. Vui lòng kiểm tra lại: {e}")
+            result_label_text.set("Lỗi: Kiểm tra lại các lựa chọn màu.")
+        except ValueError as e:
+            messagebox.showerror("Lỗi", f"Dữ liệu nhập không hợp lệ: {e}. Vui lòng kiểm tra lại các lựa chọn.")
+            result_label_text.set("Lỗi: Vui lòng thử lại.")
         except Exception as e:
-            messagebox.showerror("Lỗi", "Có lỗi xảy ra khi tính điện trở: " + str(e))
+            messagebox.showerror("Lỗi", f"Đã xảy ra lỗi không mong muốn: {e}")
+            result_label_text.set("Lỗi: Vui lòng thử lại.")
 
-    def update_resistor_bands_display(*args):
-        num_bands = resistor_bands_var.get()
-        # Ẩn/hiện vòng 3
-        if num_bands == 4:
-            resistor_band3_label.grid_forget()
-            resistor_band3_dropdown.grid_forget()
-            # Di chuyển các thành phần dưới lên
-            resistor_multiplier_label.grid(row=2, column=0, padx=5, pady=5, sticky=W)
-            resistor_multiplier.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-            resistor_tolerance_label.grid(row=3, column=0, padx=5, pady=5, sticky=W)
-            resistor_tolerance.grid(row=3, column=1, padx=5, pady=5, sticky=(W, E))
-        elif num_bands == 5:
-            resistor_band3_label.grid(row=2, column=0, padx=5, pady=5, sticky=W) # Vòng 3 ở hàng 2
-            resistor_band3_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-            # Di chuyển các thành phần dưới xuống
-            resistor_multiplier_label.grid(row=3, column=0, padx=5, pady=5, sticky=W) # Vòng nhân ở hàng 3
-            resistor_multiplier.grid(row=3, column=1, padx=5, pady=5, sticky=(W, E))
-            resistor_tolerance_label.grid(row=4, column=0, padx=5, pady=5, sticky=W) # Vòng dung sai ở hàng 4
-            resistor_tolerance.grid(row=4, column=1, padx=5, pady=5, sticky=(W, E))
+    # Nút tính toán
+    button_frame = ttk.Frame(tinh_nang_4)
+    button_frame.grid(row=3, column=0, pady=10, sticky="ew") # Grid vào cửa sổ chính, sau color_input_frame
+    button_frame.columnconfigure(0, weight=1) # Để nút căn giữa
 
-
-    # --- Giao diện người dùng ---
-    # Notebook (Tabbed interface)
-    notebook = ttk.Notebook(tinh_nang_4)
-    notebook.grid(row=0, column=0, sticky=(N, W, E, S))
-    tinh_nang_4.grid_columnconfigure(0, weight=1)
-    tinh_nang_4.grid_rowconfigure(0, weight=1)
-
-    # --- Tab 1: Máy tính cơ bản ---
-    calc_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(calc_frame, text="Máy tính")
-
-    # Chia calc_frame thành 2 cột chính: Lịch sử và Máy tính
-    calc_frame.grid_columnconfigure(0, weight=1) # Cột lịch sử
-    calc_frame.grid_columnconfigure(1, weight=2) # Cột máy tính (rộng hơn)
-    for i in range(6): # Các hàng trong cột máy tính
-        calc_frame.grid_rowconfigure(i, weight=1)
-
-
-    # Lịch sử tính toán (Cột 0)
-    history_frame = ttk.LabelFrame(calc_frame, text="Lịch sử tính toán", padding="10 10 10 10")
-    history_frame.grid(row=0, column=0, rowspan=6, padx=10, pady=5, sticky=(N, S, W, E))
-    history_frame.grid_rowconfigure(0, weight=1)
-    history_frame.grid_columnconfigure(0, weight=1)
-
-    history_text = tk.Text(history_frame, width=25, height=15, state=tk.DISABLED, wrap=tk.WORD, font=('Arial', 10))
-    history_text.grid(row=0, column=0, sticky=(N, S, W, E))
-
-
-    # Khung chứa các thành phần máy tính (Ô nhập liệu và các nút) (Cột 1)
-    calculator_buttons_frame = ttk.Frame(calc_frame, padding="10 10 10 10")
-    calculator_buttons_frame.grid(row=0, column=1, rowspan=6, padx=10, pady=5, sticky=(N, S, W, E))
-
-    # Cấu hình grid cho calculator_buttons_frame
-    calculator_buttons_frame.grid_columnconfigure(0, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(1, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(2, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(3, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(4, weight=1) # Cho nút Xóa
-    for i in range(6): # 6 hàng (entry + 5 hàng nút)
-        calculator_buttons_frame.grid_rowconfigure(i, weight=1)
-
-
-    # Ô nhập liệu hiển thị biểu thức và kết quả
-    entry = Entry(calculator_buttons_frame, font=('Arial', 18), justify='right') # Tăng font cho dễ nhìn
-    entry.grid(row=0, column=0, columnspan=5, pady=10, ipadx=5, ipady=5, sticky=(W,E))
-    entry.config(bg=theme_bg_color) # Đặt màu nền cho ô nhập liệu
-
-    # Định nghĩa style cho các nút (font và padding)
-    button_style = ttk.Style()
-    button_style.configure("TButton", font=('Arial', 12), padding=20) # Tăng font và padding mặc định
-    # Nút lớn hơn cho "0"
-    button_style.configure("Wide.TButton", font=('Arial', 12), padding=(20, 10)) # padding ngang lớn hơn
-
-
-    # Các nút hàng 1
-    ttk.Button(calculator_buttons_frame, text="AC", command=clear_entry, style="TButton").grid(column=0, row=1, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="(", command=lambda: update_entry("("), style="TButton").grid(column=1, row=1, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text=")", command=lambda: update_entry(")"), style="TButton").grid(column=2, row=1, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text=":", command=lambda: update_entry(":"), style="TButton").grid(column=3, row=1, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="Xóa", command=delete_last_char, style="TButton").grid(column=4, row=1, padx=1, pady=1, sticky=(W,E))
-
-    # Các nút hàng 2
-    ttk.Button(calculator_buttons_frame, text="7", command=lambda: update_entry("7"), style="TButton").grid(column=0, row=2, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="8", command=lambda: update_entry("8"), style="TButton").grid(column=1, row=2, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="9", command=lambda: update_entry("9"), style="TButton").grid(column=2, row=2, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="x", command=lambda: update_entry("x"), style="TButton").grid(column=3, row=2, padx=1, pady=1, sticky=(W,E))
-
-    # Các nút hàng 3
-    ttk.Button(calculator_buttons_frame, text="4", command=lambda: update_entry("4"), style="TButton").grid(column=0, row=3, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="5", command=lambda: update_entry("5"), style="TButton").grid(column=1, row=3, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="6", command=lambda: update_entry("6"), style="TButton").grid(column=2, row=3, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="-", command=lambda: update_entry("-"), style="TButton").grid(column=3, row=3, padx=1, pady=1, sticky=(W,E))
-
-    # Các nút hàng 4
-    ttk.Button(calculator_buttons_frame, text="1", command=lambda: update_entry("1"), style="TButton").grid(column=0, row=4, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="2", command=lambda: update_entry("2"), style="TButton").grid(column=1, row=4, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="3", command=lambda: update_entry("3"), style="TButton").grid(column=2, row=4, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="+", command=lambda: update_entry("+"), style="TButton").grid(column=3, row=4, padx=1, pady=1, sticky=(W,E))
-
-    # Các nút hàng 5
-    ttk.Button(calculator_buttons_frame, text="0", command=lambda: update_entry("0"), style="Wide.TButton").grid(column=0, row=5, columnspan=2, padx=1, pady=1, sticky=(W,E)) # Nút 0 dùng style riêng
-    ttk.Button(calculator_buttons_frame, text=".", command=lambda: update_entry("."), style="TButton").grid(column=2, row=5, padx=1, pady=1, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="=", command=calculate_result, style="TButton").grid(column=3, row=5, padx=1, pady=1, sticky=(W,E))
-
-
-    # --- Tab 2: Chuyển đổi đơn vị ---
-    unit_convert_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(unit_convert_frame, text="Đổi đơn vị")
-
-    # Cấu hình cột cho unit_convert_frame để các LabelFrame có thể căng ngang
-    unit_convert_frame.grid_columnconfigure(0, weight=1)
-
-    # Khai báo các danh sách đơn vị với ký hiệu hoặc tên đầy đủ để hiển thị trong Combobox
-    # Danh sách hiển thị cho người dùng (có thể là tên đầy đủ)
-    # Đã sửa lại để khớp với cách so sánh trong hàm convert_length/mass/temperature
-    length_units_display = ["m", "km", "cm", "mm", "inch", "feet", "yard"]
-    mass_units_display = ["kg", "g", "mg", "pound", "ounce"]
-    temp_units_display = ["C", "F", "K"]
-
-    # Frame cho chuyển đổi chiều dài
-    length_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi chiều dài", padding="10 10 10 10")
-    length_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    length_frame.grid_columnconfigure(1, weight=1) # Cột 1 (input/combobox) căng ngang
-    
-
-    ttk.Label(length_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    length_input = ttk.Entry(length_frame, width=20)
-    length_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-    
-
-    ttk.Label(length_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    length_unit_from = ttk.Combobox(length_frame, values=length_units_display, state="readonly")
-    length_unit_from.set("m")
-    length_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-
-    ttk.Label(length_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    length_unit_to = ttk.Combobox(length_frame, values=length_units_display, state="readonly")
-    length_unit_to.set("cm")
-    length_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(length_frame, text="Chuyển đổi", command=convert_length).grid(row=3, column=0, columnspan=2, pady=10)
-    length_result_label = ttk.Label(length_frame, text="Kết quả:")
-    length_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # Frame cho chuyển đổi khối lượng
-    mass_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi khối lượng", padding="10 10 10 10")
-    mass_frame.grid(row=1, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    mass_frame.grid_columnconfigure(1, weight=1)
-
-    ttk.Label(mass_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    mass_input = ttk.Entry(mass_frame, width=20)
-    mass_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(mass_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    mass_unit_from = ttk.Combobox(mass_frame, values=mass_units_display, state="readonly")
-    mass_unit_from.set("kg")
-    mass_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(mass_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    mass_unit_to = ttk.Combobox(mass_frame, values=mass_units_display, state="readonly")
-    mass_unit_to.set("g")
-    mass_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(mass_frame, text="Chuyển đổi", command=convert_mass).grid(row=3, column=0, columnspan=2, pady=10)
-    mass_result_label = ttk.Label(mass_frame, text="Kết quả:")
-    mass_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # Frame cho chuyển đổi nhiệt độ
-    temp_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi nhiệt độ", padding="10 10 10 10")
-    temp_frame.grid(row=2, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    temp_frame.grid_columnconfigure(1, weight=1)
-
-    ttk.Label(temp_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    temp_input = ttk.Entry(temp_frame, width=20)
-    temp_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(temp_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    temp_unit_from = ttk.Combobox(temp_frame, values=temp_units_display, state="readonly")
-    temp_unit_from.set("C")
-    temp_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(temp_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    temp_unit_to = ttk.Combobox(temp_frame, values=temp_units_display, state="readonly")
-    temp_unit_to.set("F")
-    temp_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(temp_frame, text="Chuyển đổi", command=convert_temperature).grid(row=3, column=0, columnspan=2, pady=10)
-    temp_result_label = ttk.Label(temp_frame, text="Kết quả:")
-    temp_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # --- Tab 3: Tính điện trở ---
-    resistor_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(resistor_frame, text="Tính điện trở")
-
-    # Cấu hình cột cho resistor_frame
-    resistor_frame.grid_columnconfigure(0, weight=1) # Cột cho các frame con
-    resistor_frame.grid_columnconfigure(1, weight=1) # Có thể thêm cột nếu muốn chia đôi
-
-    resistor_color_options = [
-        "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Xám", "Trắng"
-    ]
-    multiplier_color_options = [
-        "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Vàng kim", "Bạc"
-    ]
-    tolerance_color_options = [
-        "Nâu", "Đỏ", "Lục", "Lam", "Tím", "Xám", "Vàng kim", "Bạc"
-    ]
-
-    # Frame cho phần chọn số vòng
-    bands_selection_frame = ttk.LabelFrame(resistor_frame, text="Chọn số vòng", padding="10 10 10 10")
-    bands_selection_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    bands_selection_frame.grid_columnconfigure(0, weight=1)
-    bands_selection_frame.grid_columnconfigure(1, weight=1)
-
-    resistor_bands_var = tk.IntVar(value=4)
-    resistor_bands_var.trace_add("write", update_resistor_bands_display)
-    ttk.Radiobutton(bands_selection_frame, text="4 Vòng", variable=resistor_bands_var, value=4).grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    ttk.Radiobutton(bands_selection_frame, text="5 Vòng", variable=resistor_bands_var, value=5).grid(row=0, column=1, padx=5, pady=5, sticky=W)
-
-    # Frame cho các vòng màu
-    bands_input_frame = ttk.LabelFrame(resistor_frame, text="Chọn màu vòng", padding="10 10 10 10")
-    bands_input_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    bands_input_frame.grid_columnconfigure(1, weight=1) # Cột 1 (combobox) căng ngang
-
-    ttk.Label(bands_input_frame, text="Vòng 1 (Chữ số 1):").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    resistor_band1 = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band1.set("Nâu") # Giá trị mặc định phổ biến
-    resistor_band1.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(bands_input_frame, text="Vòng 2 (Chữ số 2):").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    resistor_band2 = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band2.set("Đen") # Giá trị mặc định phổ biến
-    resistor_band2.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    # Vòng 3 (chỉ hiển thị khi chọn 5 vòng) - Định nghĩa ở đây để có thể truy cập
-    resistor_band3_label = ttk.Label(bands_input_frame, text="Vòng 3 (Chữ số 3):")
-    resistor_band3_dropdown = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band3_dropdown.set("Đen")
-
-    resistor_multiplier_label = ttk.Label(bands_input_frame, text="Vòng nhân:")
-    resistor_multiplier = ttk.Combobox(bands_input_frame, values=multiplier_color_options, state="readonly")
-    resistor_multiplier.set("Đỏ") # Giá trị mặc định phổ biến (x100)
-
-    resistor_tolerance_label = ttk.Label(bands_input_frame, text="Vòng dung sai:")
-    resistor_tolerance = ttk.Combobox(bands_input_frame, values=tolerance_color_options, state="readonly")
-    resistor_tolerance.set("Vàng kim") # Giá trị mặc định phổ biến (±5%)
-
-
-    # Frame cho kết quả và nút tính
-    result_resistor_frame = ttk.LabelFrame(resistor_frame, text="Kết quả", padding="10 10 10 10")
-    result_resistor_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    result_resistor_frame.grid_columnconfigure(0, weight=1)
-    result_resistor_frame.grid_columnconfigure(1, weight=1)
-
-    calculate_resistor_button = ttk.Button(result_resistor_frame, text="Tính toán điện trở", command=calculate_resistor)
-    calculate_resistor_button.grid(row=0, column=0, columnspan=2, pady=5)
-    resistor_result_label = ttk.Label(result_resistor_frame, text="Điện trở:")
-    resistor_result_label.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-    # Cập nhật hiển thị vòng 3 ban đầu (nếu là 4 vòng)
-    update_resistor_bands_display()
-    
-    # Đảm bảo các biến root, open_toplevels và on_toplevel_close được truyền vào hàm may_tinh
-    # và thêm tinh_nang_4 vào open_toplevels
+    calculate_button = ttk.Button(button_frame, text="Tính Giá Trị Điện Trở", command=calculate_resistor_value, width=25)
+    calculate_button.grid(row=0, column=0, padx=10)
     open_toplevels.append(tinh_nang_4)
     tinh_nang_4.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_4))
-    
-    # Bạn có thể trả về tinh_nang_4 nếu cần tham chiếu đến nó bên ngoài hàm
-    return tinh_nang_4
 ###################################################################################
 global_last_disk_io_counters = psutil.disk_io_counters()
 global_last_time = time.time()
@@ -812,6 +568,10 @@ def thong_tin_va_hieu_nang():
     # --- Thiết lập cửa sổ phụ và các widget GUI TRƯỚC HẾT ---
     tinh_nang_5 = tk.Toplevel(root)
     tinh_nang_5.title("5. Thông tin và hiệu năng máy tính")
+    try:
+        tinh_nang_5.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     tinh_nang_5.resizable(False, False) # Vô hiệu hóa thay đổi kích thước
 
     style = ThemedStyle(tinh_nang_5)
@@ -1044,6 +804,8 @@ def thong_tin_va_hieu_nang():
     # --- Gọi các hàm khởi tạo sau khi tất cả widgets và hàm con đã được định nghĩa ---
     setup_static_info_display()
     update_performance_info()
+    open_toplevels.append(tinh_nang_5)
+    tinh_nang_5.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_5))
 ###################################################################################
 wiki_page_url = None 
 def tim_kiem_thong_tin(): # Tính năng 6: Tìm kiếm thông tin (wikipedia)
@@ -1130,8 +892,13 @@ def tim_kiem_thong_tin(): # Tính năng 6: Tìm kiếm thông tin (wikipedia)
             pass
 
     tinh_nang_6 = tk.Toplevel(root)
-    tinh_nang_6.title("6. Tìm kiếm thông tin trên Wikipedia")
+    tinh_nang_6.title("6.Tìm kiếm thông tin (wikipedia)")
     tinh_nang_6.geometry("600x400")
+
+    try:
+        tinh_nang_6.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
 
     style = ThemedStyle(tinh_nang_6)
     style.set_theme(current_theme)
@@ -1161,6 +928,8 @@ def tim_kiem_thong_tin(): # Tính năng 6: Tìm kiếm thông tin (wikipedia)
     o_ket_qua = scrolledtext.ScrolledText(tinh_nang_6, wrap=tk.WORD, width=70, height=15)
     o_ket_qua.config(bg=theme_bg_color, state=tk.DISABLED)
     o_ket_qua.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+    open_toplevels.append(tinh_nang_6)
+    tinh_nang_6.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_6))
 ###################################################################################
 FONT_DEFAULT = ("Arial", 10)
 FONT_TIME_DISPLAY = ("Arial", 24, "bold")
@@ -1397,6 +1166,10 @@ def dem_nguoc(): # Tính năng 7: Đồng hồ đếm ngược, bấm giờ và 
     tinh_nang_7 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
     tinh_nang_7.title("7. Đồng Hồ đếm ngược") # Thiết lập tên cho cửa sổ
     tinh_nang_7.resizable(False, False) # Loại bỏ khả năng thu phóng cảu cửa sổ
+    try:
+        tinh_nang_7.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_7)
     style.set_theme(current_theme)
@@ -1463,6 +1236,8 @@ def dem_nguoc(): # Tính năng 7: Đồng hồ đếm ngược, bấm giờ và 
     h, remainder = divmod(countdown_initial_time, 3600)
     m, s = divmod(remainder, 60)
     countdown_display.config(text=f"{h:02d}:{m:02d}:{s:02d}")
+    open_toplevels.append(tinh_nang_7)
+    tinh_nang_7.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_7))
 ###################################################################################
 current_file = None
 last_saved_content = ""
@@ -1610,6 +1385,10 @@ def van_ban(): # Tính năng 8: Trình soạn thảo văn bản
     # Tạo cửa sổ phụ cho tính năng trình soạn thảo
     tinh_nang_8 = tk.Toplevel(root) # liên kết với cửa sổ chính bằng root
     tinh_nang_8.title("8.Soạn thảo văn bản") # Thiết lập tên cho cửa sổ ban đầu (tôi đã đổi tên hiển thị cho phù hợp hơn)
+    try:
+        tinh_nang_8.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Kích thước cửa sổ ban đầu có thể nhỏ, sau đó sẽ được điều chỉnh bởi pack/grid
     tinh_nang_8.geometry("800x600") # Kích thước mặc định hợp lý hơn
     tinh_nang_8.protocol("WM_DELETE_WINDOW", on_closing) # Xử lý sự kiện đóng cửa sổ
@@ -1663,71 +1442,107 @@ def van_ban(): # Tính năng 8: Trình soạn thảo văn bản
     edit_menu.add_command(label="Dán", command=paste, accelerator="Ctrl+V")
     edit_menu.add_separator()
     edit_menu.add_command(label="Chọn Tất Cả", command=select_all, accelerator="Ctrl+A")
+    open_toplevels.append(tinh_nang_8)
+    tinh_nang_8.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_8))
 ###################################################################################
-def may_phat_nhac():
-    if not root: 
-        return
-    pygame.init()
-    HISTORY_FILE = "history.txt"
-    current_index = None  
-    paused = False        
-    playing = False  
-    SONG_END_EVENT = pygame.USEREVENT + 1
+pygame.init() 
+pygame.mixer.init()
+# Biến trạng thái toàn cục cho máy phát nhạc
+current_index = None
+paused = False
+playing = False
+history = [] # Lịch sử sẽ được tải khi cửa sổ mở
+SONG_END_EVENT = pygame.USEREVENT + 1
+HISTORY_FILE = "history.txt"
+
+# Hàm xử lý đóng cửa sổ Toplevel
+def on_toplevel_close(toplevel_window):
+    global playing, paused, current_index
+    if playing:
+        pygame.mixer.music.stop()
+        playing = False
+        paused = False
+        current_index = None # Đặt lại chỉ mục khi đóng trình phát
+    pygame.mixer.music.set_endevent(0) # Hủy sự kiện kết thúc bài hát
+    toplevel_window.destroy()
+    if toplevel_window in open_toplevels:
+        open_toplevels.remove(toplevel_window)
+
+# --- Hàm chính cho máy phát nhạc ---
+def may_phat_nhac(root, current_theme, open_toplevels):
+    global current_index, paused, playing, history, SONG_END_EVENT
+
+    # Tải lịch sử khi mở cửa sổ mới
+    def load_history_internal():
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, "r", encoding='utf-8') as f:
+                return [line for line in f.read().splitlines() if line.strip()]
+        return []
+    
+    history = load_history_internal() # Tải lịch sử vào biến global history
 
     def save_history():
         with open(HISTORY_FILE, "w", encoding='utf-8') as f:
             for file in history:
                 f.write(file + "\n")
-    def load_history():
 
-        if os.path.exists(HISTORY_FILE):
-            with open(HISTORY_FILE, "r", encoding='utf-8') as f:
-                return [line for line in f.read().splitlines() if line.strip()]
-        return []
-    history = load_history()
     def update_button_states():
+        # Cập nhật trạng thái nút điều khiển phát/tạm dừng/dừng
         if playing:
             btn_pause.config(text="Tạm dừng" if not paused else "Tiếp tục", state=tk.NORMAL)
             btn_stop.config(state=tk.NORMAL)
         else:
             btn_pause.config(text="Tạm dừng", state=tk.DISABLED)
             btn_stop.config(state=tk.DISABLED)
-    
-    # Kích hoạt/vô hiệu hóa các nút điều hướng dựa trên lịch sử
+        
+        # Kích hoạt/vô hiệu hóa các nút điều hướng dựa trên lịch sử
         if len(history) > 0:
             btn_play_all.config(state=tk.NORMAL)
-        # Nút Next/Previous chỉ được kích hoạt nếu có bài hát đang phát (current_index không None)
-            btn_next.config(state=tk.NORMAL if current_index is not None else tk.DISABLED)
-            btn_prev.config(state=tk.NORMAL if current_index is not None else tk.DISABLED)
+            # Nút Next/Previous chỉ được kích hoạt nếu có bài hát đang phát (current_index không None)
+            # HOẶC nếu có lịch sử (để có thể chọn bài đầu tiên và phát)
+            btn_next.config(state=tk.NORMAL) 
+            btn_prev.config(state=tk.NORMAL)
         else:
             btn_play_all.config(state=tk.DISABLED)
             btn_next.config(state=tk.DISABLED)
             btn_prev.config(state=tk.DISABLED)
+
     def update_history_display():
         for iid in history_list.get_children():
             history_list.delete(iid)
-    
+        
         for i, file_path in enumerate(history):
             display_name = os.path.basename(file_path)
-            if i == current_index:
+            if i == current_index and playing: # Chỉ đánh dấu khi đang phát
                 history_list.insert(parent='', index='end', iid=str(i), text='', values=(display_name,), tags=('playing_song',)) 
             else:
                 history_list.insert(parent='', index='end', iid=str(i), text='', values=(display_name,)) 
-    
+        
         save_history() # Đảm bảo lịch sử được lưu sau mỗi lần cập nhật Treeview
         update_button_states() # Cập nhật trạng thái nút sau khi cập nhật danh sách
+
     def play_audio(file_path):
         global current_index, playing, paused
         if not file_path:
             lbl_status.config(text="Chưa chọn file nhạc nào.")
             stop_audio()
             return
-
-    # Thêm vào lịch sử nếu đây là bài hát mới
+        
+        # Thêm vào lịch sử nếu đây là bài hát mới HOẶC nếu nó không ở cuối lịch sử
         if file_path not in history:
             history.append(file_path)
-
-        current_index = history.index(file_path)
+        
+        # Luôn tìm chỉ mục mới nhất của bài hát trong lịch sử
+        # Đảm bảo bài hát được phát luôn là bài hát đang được đánh dấu
+        try:
+            current_index = history.index(file_path)
+        except ValueError:
+            # Điều này có thể xảy ra nếu file_path không có trong history
+            # (ví dụ: bị xóa khỏi history nhưng vẫn được gọi để phát)
+            # Trong trường hợp này, có thể thêm lại hoặc bỏ qua
+            lbl_status.config(text=f"Lỗi: Không tìm thấy '{os.path.basename(file_path)}' trong lịch sử.")
+            stop_audio()
+            return
 
         pygame.mixer.music.load(file_path)
         pygame.mixer.music.play()
@@ -1737,6 +1552,7 @@ def may_phat_nhac():
         paused = False
         update_history_display() # Cập nhật hiển thị và lưu lịch sử
         update_button_states()
+
     def toggle_pause():
         global paused, playing
         if playing:
@@ -1750,15 +1566,18 @@ def may_phat_nhac():
         else:
             lbl_status.config(text="Không có bài hát đang phát!")
         update_button_states()
+
     def stop_audio():
         global playing, paused, current_index
-        pygame.mixer.music.stop()
+        if pygame.mixer.music.get_busy(): # Chỉ dừng nếu đang có nhạc phát
+            pygame.mixer.music.stop()
         lbl_status.config(text="Đã dừng phát")
         playing = False
         paused = False
         current_index = None # Đặt lại chỉ mục hiện tại khi dừng
         update_history_display() # Cập nhật hiển thị (bỏ đánh dấu bài hát)
         update_button_states()
+
     def play_all_from_start():
         if not history:
             lbl_status.config(text="Danh sách trống, không có bài để phát.")
@@ -1766,19 +1585,21 @@ def may_phat_nhac():
         global current_index
         current_index = 0
         play_audio(history[current_index])
+
     def play_next_song():
         """Chuyển sang và phát bài hát tiếp theo trong danh sách."""
         global current_index
         if not history:
             stop_audio()
             return
-    
+        
         if current_index is None: # Nếu chưa có gì phát, bắt đầu từ đầu
             current_index = 0
         else:
             current_index = (current_index + 1) % len(history) # Lặp lại từ đầu nếu ở cuối
 
         play_audio(history[current_index])
+
     def play_previous_song():
         """Chuyển sang và phát bài hát trước đó trong danh sách."""
         global current_index
@@ -1792,7 +1613,8 @@ def may_phat_nhac():
             current_index = (current_index - 1 + len(history)) % len(history) # Lặp lại về cuối nếu ở đầu
 
         play_audio(history[current_index])
-    def get_selected_index(event):
+
+    def get_selected_index(event=None): # Đặt event=None để có thể gọi mà không cần sự kiện
         """Lấy chỉ mục của mục được chọn trong Treeview."""
         selected_item_ids = history_list.selection()
         if selected_item_ids and selected_item_ids[0].isdigit():
@@ -1800,33 +1622,40 @@ def may_phat_nhac():
             if 0 <= idx < len(history):
                 return idx
         return None
+
     def play_selected(event):
         """Phát bài hát khi nhấn đúp vào danh sách Treeview."""
         selected_index = get_selected_index(event)
         if selected_index is not None:
             file_path = history[selected_index]
-            if pygame.mixer.music.get_busy():
-                pygame.mixer.music.stop()
             play_audio(file_path)
+
     def remove_selected_from_history():
         """Xóa bài hát đã chọn khỏi danh sách lịch sử."""
         global history, current_index
         selected_index = get_selected_index(None) # Lấy lựa chọn hiện tại
         if selected_index is not None:
             if current_index is not None and current_index == selected_index:
-                stop_audio()
+                stop_audio() # Dừng phát nếu bài đang phát bị xóa
             
-            del history[selected_index]
-
+            # Điều chỉnh current_index nếu bài hát bị xóa ảnh hưởng đến chỉ mục
             if current_index is not None:
                 if selected_index < current_index:
                     current_index -= 1
-                elif not history:
-                    current_index = None
-                elif current_index >= len(history) and len(history) > 0:
-                    current_index = len(history) - 1
+                elif selected_index == current_index: # Nếu xóa bài đang phát
+                    current_index = None # Hoặc có thể chuyển sang bài tiếp theo/trước đó
+            
+            del history[selected_index]
+            
+            # Xử lý trường hợp history trở thành rỗng sau khi xóa
+            if not history:
+                current_index = None
+            elif current_index is not None and current_index >= len(history):
+                current_index = len(history) - 1 # Điều chỉnh nếu chỉ mục vượt quá giới hạn
 
             update_history_display()
+            update_button_states() # Cập nhật lại trạng thái nút sau khi xóa
+            
     def move_song_up():
         """Di chuyển bài hát được chọn lên một vị trí trong danh sách."""
         global current_index
@@ -1841,7 +1670,9 @@ def may_phat_nhac():
                 current_index += 1
 
             update_history_display()
-            history_list.selection_set(str(idx - 1))
+            history_list.selection_set(str(idx - 1)) # Giữ bài hát được chọn
+            history_list.focus(str(idx - 1)) # Giữ focus
+
     def move_song_down():
         """Di chuyển bài hát được chọn xuống một vị trí trong danh sách."""
         global current_index
@@ -1856,42 +1687,49 @@ def may_phat_nhac():
                 current_index -= 1
 
             update_history_display()
-            history_list.selection_set(str(idx + 1))
+            history_list.selection_set(str(idx + 1)) # Giữ bài hát được chọn
+            history_list.focus(str(idx + 1)) # Giữ focus
+
     def show_context_menu(event):
         """Hiển thị menu ngữ cảnh khi nhấn chuột phải vào Treeview."""
-        context_menu = Menu(root, tearoff=0)
-    
+        context_menu = Menu(tinh_nang_9, tearoff=0) # Sử dụng tinh_nang_9 làm parent
+        
         item_id_at_click = history_list.identify_row(event.y) 
-        if item_id_at_click and item_id_at_click.isdigit():
-            history_list.selection_clear()
+        
+        # Luôn xóa lựa chọn hiện tại và đặt lựa chọn mới tại vị trí click
+        history_list.selection_clear()
+        if item_id_at_click:
             history_list.selection_set(item_id_at_click)
             history_list.focus(item_id_at_click)
 
-            index_at_click = int(item_id_at_click)
-        
-            if 0 <= index_at_click < len(history):
-                if index_at_click > 0:
-                    context_menu.add_command(label="Di chuyển lên", command=move_song_up)
-                if index_at_click < len(history) - 1:
-                    context_menu.add_command(label="Di chuyển xuống", command=move_song_down)
-            
-                if context_menu.index("end") is not None and context_menu.index("end") > 0:
-                    context_menu.add_separator()
+        selected_index = get_selected_index(None) # Lấy chỉ mục của mục được chọn
 
-                context_menu.add_command(label="Xóa khỏi danh sách", command=remove_selected_from_history)
+        if selected_index is not None:
+            if selected_index > 0:
+                context_menu.add_command(label="Di chuyển lên", command=move_song_up)
+            if selected_index < len(history) - 1:
+                context_menu.add_command(label="Di chuyển xuống", command=move_song_down)
+            
+            if context_menu.index("end") is not None and context_menu.index("end") > 0:
+                context_menu.add_separator()
+
+            context_menu.add_command(label="Xóa khỏi danh sách", command=remove_selected_from_history)
     
-        if history:
+        if history: # Chỉ thêm tùy chọn xóa toàn bộ lịch sử nếu có bài hát trong lịch sử
             if context_menu.index("end") is not None and context_menu.index("end") > 0: 
                 context_menu.add_separator()
             context_menu.add_command(label="Xóa toàn bộ lịch sử", command=clear_history)
-    
+        
+        # Chỉ hiển thị menu nếu có ít nhất một tùy chọn
         if context_menu.index("end") is not None:
             context_menu.tk_popup(event.x_root, event.y_root)
+
     def open_file_from_button():
         """Mở hộp thoại chọn tệp và phát nhạc."""
         file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3")])
         if file_path:
             play_audio(file_path)
+
     def clear_history():
         """Xóa toàn bộ lịch sử bài hát."""
         global history, current_index
@@ -1900,31 +1738,38 @@ def may_phat_nhac():
         history.clear() # Dùng history.clear() thay vì gán lại danh sách trống
         current_index = None
         update_history_display()
+        update_button_states() # Cập nhật lại trạng thái nút sau khi xóa
+
     def check_pygame_events():
         """Kiểm tra các sự kiện của Pygame, đặc biệt là sự kiện kết thúc bài hát."""
         for event in pygame.event.get():
             if event.type == SONG_END_EVENT:
-                if playing and not paused:
+                if playing and not paused: # Đảm bảo đang phát và không tạm dừng
                     play_next_song()
+        # Lặp lại hàm này sau mỗi 100ms
         tinh_nang_9.after(100, check_pygame_events)
 
-  
-    tinh_nang_9 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
-    tinh_nang_9.title("9.Máy phát nhạc") # Thiết lập tên cho cửa sổ
-    tinh_nang_9.geometry("700x500") # Thiết lập kích thước
-    # Đoạn này dùng để thay đổi giao diện 
+    # --- Tạo cửa sổ Tkinter Toplevel ---
+    tinh_nang_9 = tk.Toplevel(root) 
+    tinh_nang_9.title("9.Máy phát nhạc") 
+    tinh_nang_9.geometry("700x500")
+    try:
+        tinh_nang_9.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
+
     style = ThemedStyle(tinh_nang_9)
     style.set_theme(current_theme)
     theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
     tinh_nang_9.config(bg=theme_bg_color)
 
-# Cấu hình grid cho cửa sổ chính
-    tinh_nang_9.grid_columnconfigure(0, weight=1) # Đã thay đổi root thành tinh_nang_9
-    tinh_nang_9.grid_columnconfigure(1, weight=0) # Đã thay đổi root thành tinh_nang_9
-    tinh_nang_9.grid_rowconfigure(0, weight=1) # Đã thay đổi root thành tinh_nang_9
+    # Cấu hình grid cho cửa sổ chính
+    tinh_nang_9.grid_columnconfigure(0, weight=1) 
+    tinh_nang_9.grid_columnconfigure(1, weight=0) 
+    tinh_nang_9.grid_rowconfigure(0, weight=1) 
 
-# Khung bên trái (danh sách bài hát)
-    frame_left = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') # Đã thay đổi root thành tinh_nang_9
+    # Khung bên trái (danh sách bài hát)
+    frame_left = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') 
     frame_left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
     frame_left.grid_rowconfigure(1, weight=1)
     frame_left.grid_columnconfigure(0, weight=1)
@@ -1936,21 +1781,24 @@ def may_phat_nhac():
     history_list = ttk.Treeview(frame_left, selectmode='browse', columns=('song_name',))
     history_list.column("#0", width=0, stretch=tk.NO)
     history_list.column("song_name", anchor=tk.W, width=400)
+    history_list.heading("song_name", text="Tên bài hát", anchor=tk.W) # Thêm tiêu đề cho cột
 
+    # Cấu hình style cho bài hát đang phát
     style.configure('playing_song.Treeview', font=('Arial', 10, 'bold'), foreground='red')
-    style.map('Treeview', background=[('selected', style.lookup('TCombobox', 'fieldbackground'))])
+    # Sửa lỗi map background cho Treeview, sử dụng theme của ttkthemes
+    style.map('Treeview', background=[('selected', style.lookup('Treeview', 'fieldbackground', default='blue'))]) # Sử dụng màu nền của Treeview
 
     history_list.grid(row=1, column=0, sticky="nsew")
     history_list.bind("<Double-Button-1>", play_selected)
     history_list.bind("<Button-3>", show_context_menu)
-    history_list.bind("<<TreeviewSelect>>", lambda e: update_button_states()) 
+    history_list.bind("<<TreeviewSelect>>", lambda e: update_button_states()) # Cập nhật trạng thái nút khi chọn
 
     scrollbar = ttk.Scrollbar(frame_left, orient="vertical", command=history_list.yview)
     scrollbar.grid(row=1, column=1, sticky="ns")
     history_list.config(yscrollcommand=scrollbar.set)
 
     # Khung bên phải (các nút điều khiển)
-    frame_right = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') # Đã thay đổi root thành tinh_nang_9
+    frame_right = ttk.Frame(tinh_nang_9, style='ThemedFrame.TFrame') 
     frame_right.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
     frame_right.grid_columnconfigure(0, weight=1)
 
@@ -1960,7 +1808,7 @@ def may_phat_nhac():
     control_buttons_frame = ttk.Frame(frame_right, style='ThemedFrame.TFrame')
     control_buttons_frame.grid(row=1, column=0, pady=5, sticky="n")
 
-# Các nút điều khiển
+    # Các nút điều khiển
     btn_choose = ttk.Button(control_buttons_frame, text="Chọn file nhạc", command=open_file_from_button, width=15, style='TButton')
     btn_choose.grid(row=0, column=0, pady=5)
     btn_play_all = ttk.Button(control_buttons_frame, text="Phát toàn bộ list", command=play_all_from_start, width=15, style='TButton')
@@ -1973,11 +1821,17 @@ def may_phat_nhac():
     btn_pause.grid(row=4, column=0, pady=5)
     btn_stop = ttk.Button(control_buttons_frame, text="Dừng phát", command=stop_audio, width=15, style='TButton')
     btn_stop.grid(row=5, column=0, pady=5)
+
     # --- Khởi tạo trạng thái ban đầu ---
-    update_history_display()
-    update_button_states()
-    tinh_nang_9.after(100, check_pygame_events) # Đã thay đổi root thành tinh_nang_9
-    pygame.mixer.quit()
+    update_history_display() # Cập nhật hiển thị và tải lịch sử
+    update_button_states() # Đảm bảo các nút ở trạng thái đúng lúc khởi tạo
+
+    # Bắt đầu vòng lặp sự kiện Pygame
+    tinh_nang_9.after(100, check_pygame_events) 
+
+    # Thêm cửa sổ Toplevel vào danh sách đang mở và thiết lập hành vi đóng
+    open_toplevels.append(tinh_nang_9)
+    tinh_nang_9.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_9))
 ###################################################################################
 VALID_CITIES_FILE = "valid_cities.txt"
 CITY_LIST_GZ_FILE = "city.list.json.gz"
@@ -2119,7 +1973,8 @@ def initialize_app_data():
     global VIETNAM_LOCATIONS # Khai báo để có thể gán giá trị cho biến toàn cục
 
     if not os.path.exists(CITY_LIST_GZ_FILE):
-        messagebox.showinfo("Thông báo", "Tệp danh sách thành phố chưa tồn tại. Đang tiến hành tải xuống...")
+        messagebox.showinfo("Thông báo", "Tệp danh sách thành phố chưa tồn tại. Đang tiến hành tải xuống")
+
         if not download_city_list_file(CITY_LIST_DOWNLOAD_URL, CITY_LIST_GZ_FILE):
             messagebox.showerror("Lỗi tải tệp", "Không thể tải tệp danh sách thành phố. Vui lòng kiểm tra kết nối internet hoặc thử lại sau.")
 
@@ -2201,7 +2056,10 @@ def create_weather_window(root):
     tinh_nang_10.title("10. Thời tiết")
     tinh_nang_10.geometry("900x600") # Kích thước mặc định
     tinh_nang_10.resizable(True, True) # Cho phép thay đổi kích thước
-
+    try:
+        tinh_nang_10.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Áp dụng theme từ ttkthemes cho cửa sổ con
     style = ThemedStyle(tinh_nang_10)
     style.set_theme(current_theme)
@@ -2272,6 +2130,8 @@ def create_weather_window(root):
     combined_weather_scrollbar = ttk.Scrollbar(combined_weather_frame, orient="vertical", command=combined_weather_text_widget.yview)
     combined_weather_scrollbar.grid(row=0, column=1, sticky="ns")
     combined_weather_text_widget.config(yscrollcommand=combined_weather_scrollbar.set)
+    open_toplevels.append(tinh_nang_10)
+    tinh_nang_10.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_10))
 def thoi_tiet():
     if root is None:
         return 
@@ -2321,8 +2181,12 @@ def giao_dien (): # Tính năng 11: Giao diện
         return
     # Tạo cửa sổ phụ cho tính năng 11     
     tinh_nang_11 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
-    tinh_nang_11.title("Chọn chủ đề") # Thiết lập tên cho cửa sổ
+    tinh_nang_11.title("11.Thay đổi giao diện người dùng") # Thiết lập tên cho cửa sổ
     tinh_nang_11.geometry("300x180") # Thiết lập kích thước
+    try:
+        tinh_nang_11.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     tinh_nang_11.resizable(False, False) # Loại bỏ khả năng thu phóng của cửa sổ
     # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_11)
@@ -2577,7 +2441,11 @@ def bang_tuan_hoan():
     # Tạo cửa sổ phụ cho tính năng 11     
     tinh_nang_12 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
     tinh_nang_12.title("12. Bảng tuần hoàn hóa học") # Thiết lập tên cho cửa sổ
-    tinh_nang_12.resizable(False, False) # Loại bỏ khả năng thu phóng của cửa sổ
+     # tinh_nang_12.resizable(False, False) # Loại bỏ khả năng thu phóng của cửa sổ
+    try:
+        tinh_nang_12.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_12)
     style.set_theme(current_theme)
@@ -2605,6 +2473,8 @@ def bang_tuan_hoan():
         return
     
     create_widgets(tinh_nang_12, loading_frame)
+    open_toplevels.append(tinh_nang_12)
+    tinh_nang_12.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_12))
 ###################################################################################
 def ban_do():
     m = folium.Map(location=[21.0285, 105.8542], zoom_start=5)
@@ -2681,6 +2551,10 @@ def dich_thuat():
     tinh_nang_14 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
     tinh_nang_14.title("2.Dịch thuật") # Thiết lập tên cho cửa sổ
     tinh_nang_14.geometry("800x600") # Thiết lập kích thước
+    try:
+        tinh_nang_14.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
     tinh_nang_14.resizable(True, True)
     # Đoạn này dùng để thay đổi giao diện 
     style = ThemedStyle(tinh_nang_14)
@@ -2698,6 +2572,7 @@ def dich_thuat():
     input_frame.grid_rowconfigure(0, weight=1)
     input_frame.grid_columnconfigure(0, weight=1)
     input_text_area = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, width=60, height=10, font=("Arial", 12))
+    input_text_area.config(bg=theme_bg_color) # Đặt màu nền cho vùng nhập liệu
     input_text_area.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
     # Thanh điều khiển (Combobox và Nút)
     control_frame = ttk.Frame(tinh_nang_14)
@@ -2707,7 +2582,7 @@ def dich_thuat():
     # Tạo danh sách các tên ngôn ngữ được hỗ trợ
     language_names = sorted([name.title() for name in LANGUAGES.values()])
     lang_combobox = ttk.Combobox(control_frame, values=language_names, state="readonly", font=("Arial", 10))
-    lang_combobox.set("Tiếng Việt") # Ngôn ngữ mặc định
+    lang_combobox.set("Vietnamese") # Ngôn ngữ mặc định
     lang_combobox.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
     # Gán hàm start_translation cho nút Dịch
     translate_button = ttk.Button(control_frame, text="Dịch", command=start_translation)
@@ -2719,20 +2594,27 @@ def dich_thuat():
     output_frame.grid_columnconfigure(0, weight=1)
     output_text_area = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, width=60, height=10, font=("Arial", 12))
     output_text_area.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+    output_text_area.config(bg= theme_bg_color)
     output_text_area.config(state=tk.DISABLED) # Đặt trạng thái chỉ đọc
+    open_toplevels.append(tinh_nang_14)
+    tinh_nang_14.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_14))
 ###################################################################################
 def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
     if not root: # 2 Dòng này nhằm đảm bảo cảu sổ chính tồn tại 
         return
     
-    tinh_nang_13 = tk.Toplevel(root)
-    tinh_nang_13.title("15. Đôi lời của nhà sản xuất")
-    tinh_nang_13.resizable(False, False)
+    tinh_nang_15 = tk.Toplevel(root)
+    tinh_nang_15.title("15. Đôi lời của nhà sản xuất")
+    try:
+        tinh_nang_15.iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Không tìm thấy hoặc không thể sử dụng icon cho Toplevel: {icon_path}")
+    tinh_nang_15.resizable(False, False)
     # Áp dụng chủ đề cho cửa sổ Toplevel
-    style = ThemedStyle(tinh_nang_13)
+    style = ThemedStyle(tinh_nang_15)
     style.set_theme(current_theme)
     theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
-    tinh_nang_13.config(bg=theme_bg_color)
+    tinh_nang_15.config(bg=theme_bg_color)
     # Nội dung thông điệp
     message = (
         "Chào mừng bạn đến với ứng dụng của chúng tôi!\n\n" # Thêm dòng trống để dễ đọc
@@ -2744,13 +2626,36 @@ def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
         "Trân trọng,\n\n"
         "Đội ngũ sản xuất và phát triển: Đinh Viết Phúc và Ngô Văn Anh Khoa." 
     )
-    ttk.Label(tinh_nang_13, text=message, wraplength=400, justify="left", font=("Arial", 10)).pack(padx=20, pady=20) 
+    ttk.Label(tinh_nang_15, text=message, wraplength=400, justify="left", font=("Arial", 10)).pack(padx=20, pady=20) 
+    open_toplevels.append(tinh_nang_15)
+    tinh_nang_15.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_15))
+###################################################################################
+def resource_path(relative_path):
+    """
+    Get absolute path to resource, works for dev and for PyInstaller
+    """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 ###################################################################################
 if __name__ == "__main__":
 
     root = ThemedTk(theme=current_theme)
     root.title("App đa năng")
     root.resizable(False, False)
+    icon_path = resource_path("logo.ico") # "logo.ico" vì bạn đã thêm nó vào thư mục gốc (.:)
+    try:
+        root.wm_iconbitmap(icon_path)
+    except tk.TclError:
+        print(f"Warning: Could not load icon from {icon_path}. Check if the file is valid or correctly bundled.")
+    # Đây là nơi bạn có thể thêm một biểu tượng mặc định hoặc bỏ qua nếu không quan trọng
+        pass
+
+    root.iconbitmap(icon_path)
     frm = ttk.Frame(root, padding=10)
     frm.grid()
     style = ThemedStyle(root)
@@ -2762,17 +2667,17 @@ if __name__ == "__main__":
     ttk.Button(frm, text="1.Đồng hồ và lịch", command=clock).grid(column=0, row=1, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="5.Thông tin và hiệu năng hệ thống", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="4.Đọc điện trở", command=doc_dien_tro).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="5.Thông tin và hiệu năng máy tính", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="6.Tìm kiếm thông tin (wikipedia) ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="7.Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="8.Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="9.Máy phát nhạc", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="8.Soạn thảo văn bản", command=van_ban).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="9.Máy phát nhạc", command=lambda: may_phat_nhac(root, current_theme, open_toplevels)).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="10.Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="11.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="13.Bản đồ", command=ban_do).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="14.Dịch thuật", command=dich_thuat).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="15.Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="13.Bản đồ", command=ban_do).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="14.Dịch thuật", command=dich_thuat).grid(column=0, row=14, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="15.Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=15, columnspan=2, sticky="ew", pady=2)
 
     root.mainloop()
