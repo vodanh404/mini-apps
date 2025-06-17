@@ -26,6 +26,8 @@ import subprocess
 import re
 import folium
 import pygame
+from googletrans import Translator, LANGUAGES
+import asyncio 
 # Các tính năng của ứng dụng
 du_lieu_ghi_chu = "notes.ini"
 def load_notes(): # Tải ghi chú từ file ini
@@ -183,513 +185,8 @@ def camera(): # Tính năng 2: Máy ảnh
     ttk.Button(tinh_nang_2, text="Quay video", command=quay_video).grid(column=0, row=2, columnspan=2, sticky="ew")
     ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=3, columnspan=2, sticky="ew")
 
-    root.protocol("WM_DELETE_WINDOW", on_closing)
+    tinh_nang_2.winfo_toplevel().protocol("WM_DELETE_WINDOW", on_closing)
     update_frame()
-
-###################################################################################
-
-
-    tinh_nang_4 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
-    tinh_nang_4.title("4. MÁy tính ") # Thiết lập tên cho cửa sổ
-    tinh_nang_4.grid() # Thiết lập kích thước
-    tinh_nang_4.resizable(False, False) # Loại bỏ khả năng thu phóng cảu cửa sổ
-    # Đoạn này dùng để thay đổi giao diện 
-    style = ThemedStyle(tinh_nang_4)
-    style.set_theme(current_theme)
-    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
-    tinh_nang_4.config(bg=theme_bg_color)
-
-    expression = ""  # Biến này để lưu trữ biểu thức hiện tại
-    history = []     # Biến để lưu trữ lịch sử tính toán
-
-    # Hàm cập nhật ô nhập liệu
-    def update_entry(value):
-        nonlocal expression
-        expression += str(value)
-        entry.delete(0, END)
-        entry.insert(0, expression)
-
-    # Hàm xóa toàn bộ ô nhập liệu
-    def clear_entry():
-        nonlocal expression
-        expression = ""
-        entry.delete(0, END)
-
-    # Hàm tính toán kết quả
-    def calculate_result():
-        nonlocal expression, history
-        try:
-            # Thay thế các ký hiệu toán học với người dùng thành toán tử Python
-            eval_expression = expression.replace("x", "*").replace(":", "/").replace(",", ".")
-            # Đánh giá biểu thức
-            result = str(eval(eval_expression))
-            entry.delete(0, tk.END)
-            entry.insert(0, result)
-            history.append(f"{expression} = {result}") # Thêm vào lịch sử
-            update_history_display() # Cập nhật hiển thị lịch sử
-            expression = result  # Lưu kết quả để có thể tiếp tục tính toán
-        except Exception as e:
-            # Hiển thị thông báo lỗi
-            messagebox.showerror("Lỗi", "Biểu thức không hợp lệ hoặc lỗi: " + str(e))
-            expression = ""  # Đặt lại biểu thức khi có lỗi
-
-    # Hàm xóa ký tự cuối cùng
-    def delete_last_char():
-        nonlocal expression
-        expression = expression[:-1]  # Cắt bỏ ký tự cuối cùng
-        entry.delete(0, tk.END)
-        entry.insert(0, expression)
-
-    # Hàm cập nhật hiển thị lịch sử
-    def update_history_display():
-        history_text.config(state=tk.NORMAL)
-        history_text.delete(1.0, tk.END)
-        for item in history:
-            history_text.insert(tk.END, item + "\n")
-        history_text.config(state=tk.DISABLED)
-
-    # --- Các hàm chuyển đổi đơn vị ---
-    # Ánh xạ từ tên đơn vị sang ký hiệu để hiển thị
-    unit_symbols = {
-        "mét": "m", "kilômét": "km", "centimét": "cm", "milimét": "mm",
-        "inch": "in", "feet": "ft", "yard": "yd",
-        "kilôgam": "kg", "gram": "g", "miligam": "mg", "pound": "lb", "ounce": "oz",
-        "Celsius": "°C", "Fahrenheit": "°F", "Kelvin": "K"
-    }
-
-    def convert_length():
-        try:
-            value = float(length_input.get())
-            unit_from_name = length_unit_from.get()
-            unit_to_name = length_unit_to.get()
-
-            # Chuyển đổi về mét
-            if unit_from_name == "mét":
-                base_value = value
-            elif unit_from_name == "kilômét":
-                base_value = value * 1000
-            elif unit_from_name == "centimét":
-                base_value = value / 100
-            elif unit_from_name == "milimét":
-                base_value = value / 1000
-            elif unit_from_name == "inch":
-                base_value = value * 0.0254
-            elif unit_from_name == "feet":
-                base_value = value * 0.3048
-            elif unit_from_name == "yard":
-                base_value = value * 0.9144
-            else:
-                base_value = value # fallback
-
-            # Chuyển đổi từ mét sang đơn vị đích
-            if unit_to_name == "mét":
-                result = base_value
-            elif unit_to_name == "kilômét":
-                result = base_value / 1000
-            elif unit_to_name == "centimét":
-                result = base_value * 100
-            elif unit_to_name == "milimét":
-                result = base_value * 1000
-            elif unit_to_name == "inch":
-                result = base_value / 0.0254
-            elif unit_to_name == "feet":
-                result = base_value / 0.3048
-            elif unit_to_name == "yard":
-                result = base_value / 0.9144
-            else:
-                result = base_value # fallback
-
-
-            length_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho chiều dài.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
-
-    def convert_mass():
-        try:
-            value = float(mass_input.get())
-            unit_from_name = mass_unit_from.get()
-            unit_to_name = mass_unit_to.get()
-
-            # Chuyển đổi về kilogram
-            if unit_from_name == "kilôgam":
-                base_value = value
-            elif unit_from_name == "gram":
-                base_value = value / 1000
-            elif unit_from_name == "miligam":
-                base_value = value / 1_000_000
-            elif unit_from_name == "pound":
-                base_value = value * 0.453592
-            elif unit_from_name == "ounce":
-                base_value = value * 0.0283495
-            else:
-                base_value = value
-
-            # Chuyển đổi từ kilogram sang đơn vị đích
-            if unit_to_name == "kilôgam":
-                result = base_value
-            elif unit_to_name == "gram":
-                result = base_value * 1000
-            elif unit_to_name == "miligam":
-                result = base_value * 1_000_000
-            elif unit_to_name == "pound":
-                result = base_value / 0.453592
-            elif unit_to_name == "ounce":
-                result = base_value / 0.0283495
-            else:
-                result = base_value
-
-            mass_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho khối lượng.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
-
-    def convert_temperature():
-        try:
-            value = float(temp_input.get())
-            unit_from_name = temp_unit_from.get()
-            unit_to_name = temp_unit_to.get()
-
-            # Chuyển đổi về độ C
-            if unit_from_name == "Celsius":
-                base_value = value
-            elif unit_from_name == "Fahrenheit":
-                base_value = (value - 32) * 5/9
-            elif unit_from_name == "Kelvin":
-                base_value = value - 273.15
-            else:
-                base_value = value
-
-            # Chuyển đổi từ độ C sang đơn vị đích
-            if unit_to_name == "Celsius":
-                result = base_value
-            elif unit_to_name == "Fahrenheit":
-                result = (base_value * 9/5) + 32
-            elif unit_to_name == "Kelvin":
-                result = base_value + 273.15
-            else:
-                result = base_value
-
-            temp_result_label.config(text=f"Kết quả: {result:.2f} {unit_symbols.get(unit_to_name, unit_to_name)}")
-        except ValueError:
-            messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho nhiệt độ.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {e}")
-
-    # --- Hàm tính điện trở từ vòng màu ---
-    def calculate_resistor():
-        colors = {
-            "Đen": 0, "Nâu": 1, "Đỏ": 2, "Cam": 3, "Vàng": 4,
-            "Lục": 5, "Lam": 6, "Tím": 7, "Xám": 8, "Trắng": 9
-        }
-        multiplier_colors = {
-            "Đen": 1, "Nâu": 10, "Đỏ": 100, "Cam": 1000, "Vàng": 10000,
-            "Lục": 100000, "Lam": 1000000, "Tím": 10000000,
-            "Vàng kim": 0.1, "Bạc": 0.01
-        }
-        tolerance_values = { # Sử dụng giá trị trực tiếp để tránh lỗi làm tròn
-            "Nâu": 1, "Đỏ": 2, "Lục": 0.5, "Lam": 0.25,
-            "Tím": 0.1, "Xám": 0.05, "Vàng kim": 5, "Bạc": 10
-        }
-
-        try:
-            band1 = resistor_band1.get()
-            band2 = resistor_band2.get()
-            multiplier_band = resistor_multiplier.get()
-            tolerance_band = resistor_tolerance.get()
-
-            num_bands = resistor_bands_var.get()
-
-            value_band1 = colors[band1]
-            value_band2 = colors[band2]
-
-            if num_bands == 4: # Điện trở 4 vòng
-                multiplier = multiplier_colors[multiplier_band]
-                tolerance_percent = tolerance_values[tolerance_band] # Lấy giá trị phần trăm trực tiếp
-
-                resistance = (value_band1 * 10 + value_band2) * multiplier
-                resistor_result_label.config(text=f"Điện trở: {resistance:.2f} Ω ± {tolerance_percent:.2f}%")
-
-            elif num_bands == 5: # Điện trở 5 vòng
-                band3 = resistor_band3_dropdown.get() # Lấy giá trị từ dropdown
-                value_band3 = colors[band3]
-                multiplier = multiplier_colors[multiplier_band]
-                tolerance_percent = tolerance_values[tolerance_band] # Lấy giá trị phần trăm trực tiếp
-
-                resistance = (value_band1 * 100 + value_band2 * 10 + value_band3) * multiplier
-                resistor_result_label.config(text=f"Điện trở: {resistance:.2f} Ω ± {tolerance_percent:.2f}%")
-            else:
-                messagebox.showerror("Lỗi", "Vui lòng chọn số vòng (4 hoặc 5).")
-
-        except KeyError as e:
-            messagebox.showerror("Lỗi", f"Màu không hợp lệ: {e}. Vui lòng chọn màu từ danh sách.")
-        except Exception as e:
-            messagebox.showerror("Lỗi", "Có lỗi xảy ra khi tính điện trở: " + str(e))
-
-    def update_resistor_bands_display(*args):
-        num_bands = resistor_bands_var.get()
-        # Ẩn/hiện vòng 3
-        if num_bands == 4:
-            resistor_band3_label.grid_forget()
-            resistor_band3_dropdown.grid_forget()
-            # Di chuyển các thành phần dưới lên
-            resistor_multiplier_label.grid(row=2, column=0, padx=5, pady=5, sticky=W)
-            resistor_multiplier.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-            resistor_tolerance_label.grid(row=3, column=0, padx=5, pady=5, sticky=W)
-            resistor_tolerance.grid(row=3, column=1, padx=5, pady=5, sticky=(W, E))
-        elif num_bands == 5:
-            resistor_band3_label.grid(row=2, column=0, padx=5, pady=5, sticky=W) # Vòng 3 ở hàng 2
-            resistor_band3_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-            # Di chuyển các thành phần dưới xuống
-            resistor_multiplier_label.grid(row=3, column=0, padx=5, pady=5, sticky=W) # Vòng nhân ở hàng 3
-            resistor_multiplier.grid(row=3, column=1, padx=5, pady=5, sticky=(W, E))
-            resistor_tolerance_label.grid(row=4, column=0, padx=5, pady=5, sticky=W) # Vòng dung sai ở hàng 4
-            resistor_tolerance.grid(row=4, column=1, padx=5, pady=5, sticky=(W, E))
-
-
-    # --- Giao diện người dùng ---
-    # Notebook (Tabbed interface)
-    notebook = ttk.Notebook(tinh_nang_4)
-    notebook.grid(row=0, column=0, sticky=(N, W, E, S))
-    tinh_nang_4.grid_columnconfigure(0, weight=1)
-    tinh_nang_4.grid_rowconfigure(0, weight=1)
-
-    # --- Tab 1: Máy tính cơ bản ---
-    calc_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(calc_frame, text="Máy tính")
-
-    # Chia calc_frame thành 2 cột chính: Lịch sử và Máy tính
-    calc_frame.grid_columnconfigure(0, weight=1) # Cột lịch sử
-    calc_frame.grid_columnconfigure(1, weight=2) # Cột máy tính (rộng hơn)
-    for i in range(6): # Các hàng trong cột máy tính
-        calc_frame.grid_rowconfigure(i, weight=1)
-
-
-    # Lịch sử tính toán (Cột 0)
-    history_frame = ttk.LabelFrame(calc_frame, text="Lịch sử tính toán", padding="10 10 10 10")
-    history_frame.grid(row=0, column=0, rowspan=6, padx=10, pady=5, sticky=(N, S, W, E))
-    history_frame.grid_rowconfigure(0, weight=1)
-    history_frame.grid_columnconfigure(0, weight=1)
-
-    history_text = tk.Text(history_frame, width=25, height=15, state=tk.DISABLED, wrap=tk.WORD, font=('Arial', 10))
-    history_text.grid(row=0, column=0, sticky=(N, S, W, E))
-
-
-    # Khung chứa các thành phần máy tính (Ô nhập liệu và các nút) (Cột 1)
-    calculator_buttons_frame = ttk.Frame(calc_frame, padding="10 10 10 10")
-    calculator_buttons_frame.grid(row=0, column=1, rowspan=6, padx=10, pady=5, sticky=(N, S, W, E))
-
-    # Cấu hình grid cho calculator_buttons_frame
-    calculator_buttons_frame.grid_columnconfigure(0, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(1, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(2, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(3, weight=1)
-    calculator_buttons_frame.grid_columnconfigure(4, weight=1) # Cho nút Xóa
-    for i in range(6): # 6 hàng (entry + 5 hàng nút)
-        calculator_buttons_frame.grid_rowconfigure(i, weight=1)
-
-
-    # Ô nhập liệu hiển thị biểu thức và kết quả
-    entry = Entry(calculator_buttons_frame, font=('Arial', 18), justify='right') # Tăng font cho dễ nhìn
-    entry.grid(row=0, column=0, columnspan=5, pady=10, ipadx=5, ipady=5, sticky=(W,E))
-
-    # Định nghĩa style cho các nút (font và padding)
-    button_style = ttk.Style()
-    button_style.configure("TButton", font=('Arial', 12), padding=10) # Tăng font và padding mặc định
-
-    # Nút lớn hơn cho "0"
-    button_style.configure("Wide.TButton", font=('Arial', 12), padding=(20, 10)) # padding ngang lớn hơn
-
-
-    # Các nút hàng 1
-    ttk.Button(calculator_buttons_frame, text="AC", command=clear_entry, style="TButton").grid(column=0, row=1, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="(", command=lambda: update_entry("("), style="TButton").grid(column=1, row=1, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text=")", command=lambda: update_entry(")"), style="TButton").grid(column=2, row=1, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text=":", command=lambda: update_entry(":"), style="TButton").grid(column=3, row=1, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="Xóa", command=delete_last_char, style="TButton").grid(column=4, row=1, padx=2, pady=2, sticky=(W,E))
-
-    # Các nút hàng 2
-    ttk.Button(calculator_buttons_frame, text="7", command=lambda: update_entry("7"), style="TButton").grid(column=0, row=2, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="8", command=lambda: update_entry("8"), style="TButton").grid(column=1, row=2, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="9", command=lambda: update_entry("9"), style="TButton").grid(column=2, row=2, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="x", command=lambda: update_entry("x"), style="TButton").grid(column=3, row=2, padx=2, pady=2, sticky=(W,E))
-
-    # Các nút hàng 3
-    ttk.Button(calculator_buttons_frame, text="4", command=lambda: update_entry("4"), style="TButton").grid(column=0, row=3, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="5", command=lambda: update_entry("5"), style="TButton").grid(column=1, row=3, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="6", command=lambda: update_entry("6"), style="TButton").grid(column=2, row=3, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="-", command=lambda: update_entry("-"), style="TButton").grid(column=3, row=3, padx=2, pady=2, sticky=(W,E))
-
-    # Các nút hàng 4
-    ttk.Button(calculator_buttons_frame, text="1", command=lambda: update_entry("1"), style="TButton").grid(column=0, row=4, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="2", command=lambda: update_entry("2"), style="TButton").grid(column=1, row=4, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="3", command=lambda: update_entry("3"), style="TButton").grid(column=2, row=4, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="+", command=lambda: update_entry("+"), style="TButton").grid(column=3, row=4, padx=2, pady=2, sticky=(W,E))
-
-    # Các nút hàng 5
-    ttk.Button(calculator_buttons_frame, text="0", command=lambda: update_entry("0"), style="Wide.TButton").grid(column=0, row=5, columnspan=2, padx=2, pady=2, sticky=(W,E)) # Nút 0 dùng style riêng
-    ttk.Button(calculator_buttons_frame, text=".", command=lambda: update_entry("."), style="TButton").grid(column=2, row=5, padx=2, pady=2, sticky=(W,E))
-    ttk.Button(calculator_buttons_frame, text="=", command=calculate_result, style="TButton").grid(column=3, row=5, padx=2, pady=2, sticky=(W,E))
-
-
-    # --- Tab 2: Chuyển đổi đơn vị ---
-    unit_convert_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(unit_convert_frame, text="Đổi đơn vị")
-
-    # Cấu hình cột cho unit_convert_frame để các LabelFrame có thể căng ngang
-    unit_convert_frame.grid_columnconfigure(0, weight=1)
-
-    # Khai báo các danh sách đơn vị với ký hiệu hoặc tên đầy đủ để hiển thị trong Combobox
-    # Danh sách hiển thị cho người dùng (có thể là tên đầy đủ)
-    length_units_display = ["m", "km", "cm", "mn", "inch", "feet", "yard"]
-    mass_units_display = ["kg", "g", "mg", "pound", "ounce"]
-    temp_units_display = ["C", "F", "K"]
-
-    # Frame cho chuyển đổi chiều dài
-    length_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi chiều dài", padding="10 10 10 10")
-    length_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    length_frame.grid_columnconfigure(1, weight=1) # Cột 1 (input/combobox) căng ngang
-
-    ttk.Label(length_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    length_input = ttk.Entry(length_frame, width=20)
-    length_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(length_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    length_unit_from = ttk.Combobox(length_frame, values=length_units_display, state="readonly")
-    length_unit_from.set("m")
-    length_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(length_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    length_unit_to = ttk.Combobox(length_frame, values=length_units_display, state="readonly")
-    length_unit_to.set("cm")
-    length_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(length_frame, text="Chuyển đổi", command=convert_length).grid(row=3, column=0, columnspan=2, pady=10)
-    length_result_label = ttk.Label(length_frame, text="Kết quả:")
-    length_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # Frame cho chuyển đổi khối lượng
-    mass_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi khối lượng", padding="10 10 10 10")
-    mass_frame.grid(row=1, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    mass_frame.grid_columnconfigure(1, weight=1)
-
-    ttk.Label(mass_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    mass_input = ttk.Entry(mass_frame, width=20)
-    mass_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(mass_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    mass_unit_from = ttk.Combobox(mass_frame, values=mass_units_display, state="readonly")
-    mass_unit_from.set("kg")
-    mass_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(mass_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    mass_unit_to = ttk.Combobox(mass_frame, values=mass_units_display, state="readonly")
-    mass_unit_to.set("g")
-    mass_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(mass_frame, text="Chuyển đổi", command=convert_mass).grid(row=3, column=0, columnspan=2, pady=10)
-    mass_result_label = ttk.Label(mass_frame, text="Kết quả:")
-    mass_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # Frame cho chuyển đổi nhiệt độ
-    temp_frame = ttk.LabelFrame(unit_convert_frame, text="Chuyển đổi nhiệt độ", padding="10 10 10 10")
-    temp_frame.grid(row=2, column=0, padx=5, pady=5, sticky=(N, W, E, S))
-    temp_frame.grid_columnconfigure(1, weight=1)
-
-    ttk.Label(temp_frame, text="Giá trị:").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    temp_input = ttk.Entry(temp_frame, width=20)
-    temp_input.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(temp_frame, text="Từ:").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    temp_unit_from = ttk.Combobox(temp_frame, values=temp_units_display, state="readonly")
-    temp_unit_from.set("C")
-    temp_unit_from.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(temp_frame, text="Sang:").grid(row=2, column=0, padx=5, pady=5, sticky=W)
-    temp_unit_to = ttk.Combobox(temp_frame, values=temp_units_display, state="readonly")
-    temp_unit_to.set("F")
-    temp_unit_to.grid(row=2, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Button(temp_frame, text="Chuyển đổi", command=convert_temperature).grid(row=3, column=0, columnspan=2, pady=10)
-    temp_result_label = ttk.Label(temp_frame, text="Kết quả:")
-    temp_result_label.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-
-    # --- Tab 3: Tính điện trở ---
-    resistor_frame = ttk.Frame(notebook, padding="10 10 10 10")
-    notebook.add(resistor_frame, text="Tính điện trở")
-
-    # Cấu hình cột cho resistor_frame
-    resistor_frame.grid_columnconfigure(0, weight=1) # Cột cho các frame con
-    resistor_frame.grid_columnconfigure(1, weight=1) # Có thể thêm cột nếu muốn chia đôi
-
-    resistor_color_options = [
-        "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Xám", "Trắng"
-    ]
-    multiplier_color_options = [
-        "Đen", "Nâu", "Đỏ", "Cam", "Vàng", "Lục", "Lam", "Tím", "Vàng kim", "Bạc"
-    ]
-    tolerance_color_options = [
-        "Nâu", "Đỏ", "Lục", "Lam", "Tím", "Xám", "Vàng kim", "Bạc"
-    ]
-
-    # Frame cho phần chọn số vòng
-    bands_selection_frame = ttk.LabelFrame(resistor_frame, text="Chọn số vòng", padding="10 10 10 10")
-    bands_selection_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    bands_selection_frame.grid_columnconfigure(0, weight=1)
-    bands_selection_frame.grid_columnconfigure(1, weight=1)
-
-    resistor_bands_var = tk.IntVar(value=4)
-    resistor_bands_var.trace_add("write", update_resistor_bands_display)
-    ttk.Radiobutton(bands_selection_frame, text="4 Vòng", variable=resistor_bands_var, value=4).grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    ttk.Radiobutton(bands_selection_frame, text="5 Vòng", variable=resistor_bands_var, value=5).grid(row=0, column=1, padx=5, pady=5, sticky=W)
-
-    # Frame cho các vòng màu
-    bands_input_frame = ttk.LabelFrame(resistor_frame, text="Chọn màu vòng", padding="10 10 10 10")
-    bands_input_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    bands_input_frame.grid_columnconfigure(1, weight=1) # Cột 1 (combobox) căng ngang
-
-    ttk.Label(bands_input_frame, text="Vòng 1 (Chữ số 1):").grid(row=0, column=0, padx=5, pady=5, sticky=W)
-    resistor_band1 = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band1.set("Nâu") # Giá trị mặc định phổ biến
-    resistor_band1.grid(row=0, column=1, padx=5, pady=5, sticky=(W, E))
-
-    ttk.Label(bands_input_frame, text="Vòng 2 (Chữ số 2):").grid(row=1, column=0, padx=5, pady=5, sticky=W)
-    resistor_band2 = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band2.set("Đen") # Giá trị mặc định phổ biến
-    resistor_band2.grid(row=1, column=1, padx=5, pady=5, sticky=(W, E))
-
-    # Vòng 3 (chỉ hiển thị khi chọn 5 vòng) - Định nghĩa ở đây để có thể truy cập
-    resistor_band3_label = ttk.Label(bands_input_frame, text="Vòng 3 (Chữ số 3):")
-    resistor_band3_dropdown = ttk.Combobox(bands_input_frame, values=resistor_color_options, state="readonly")
-    resistor_band3_dropdown.set("Đen")
-
-    resistor_multiplier_label = ttk.Label(bands_input_frame, text="Vòng nhân:")
-    resistor_multiplier = ttk.Combobox(bands_input_frame, values=multiplier_color_options, state="readonly")
-    resistor_multiplier.set("Đỏ") # Giá trị mặc định phổ biến (x100)
-
-    resistor_tolerance_label = ttk.Label(bands_input_frame, text="Vòng dung sai:")
-    resistor_tolerance = ttk.Combobox(bands_input_frame, values=tolerance_color_options, state="readonly")
-    resistor_tolerance.set("Vàng kim") # Giá trị mặc định phổ biến (±5%)
-
-
-    # Frame cho kết quả và nút tính
-    result_resistor_frame = ttk.LabelFrame(resistor_frame, text="Kết quả", padding="10 10 10 10")
-    result_resistor_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=(W, E))
-    result_resistor_frame.grid_columnconfigure(0, weight=1)
-    result_resistor_frame.grid_columnconfigure(1, weight=1)
-
-    calculate_resistor_button = ttk.Button(result_resistor_frame, text="Tính toán điện trở", command=calculate_resistor)
-    calculate_resistor_button.grid(row=0, column=0, columnspan=2, pady=5)
-    resistor_result_label = ttk.Label(result_resistor_frame, text="Điện trở:")
-    resistor_result_label.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky=W)
-
-    # Cập nhật hiển thị vòng 3 ban đầu (nếu là 4 vòng)
-    update_resistor_bands_display()
 ###################################################################################
 def gui_thu(): # Tính năng 3: Gửi thư 
     SENDER_EMAIL = "ungdungthu3@gmail.com"
@@ -766,12 +263,11 @@ def gui_thu(): # Tính năng 3: Gửi thư
     tinh_nang_3.grid_rowconfigure(3, weight=1)
     tinh_nang_3.grid_columnconfigure(1, weight=1)
 ###################################################################################
-def may_tinh(): # Tính năng 4: Máy tính
-
-    tinh_nang_4 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
-    tinh_nang_4.title("4. MÁy tính ") # Thiết lập tên cho cửa sổ
-    tinh_nang_4.resizable(False, False) # Loại bỏ khả năng thu phóng cảu cửa sổ
-    # Đoạn này dùng để thay đổi giao diện 
+def may_tinh(): # Thêm các tham số cần thiết
+    tinh_nang_4 = tk.Toplevel(root)
+    tinh_nang_4.title("4.Máy tính")
+    tinh_nang_4.resizable(False, False)
+    # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_4)
     style.set_theme(current_theme)
     theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
@@ -842,13 +338,13 @@ def may_tinh(): # Tính năng 4: Máy tính
             unit_to_name = length_unit_to.get()
 
             # Chuyển đổi về mét
-            if unit_from_name == "mét":
+            if unit_from_name == "m":
                 base_value = value
-            elif unit_from_name == "kilômét":
+            elif unit_from_name == "km":
                 base_value = value * 1000
-            elif unit_from_name == "centimét":
+            elif unit_from_name == "cm":
                 base_value = value / 100
-            elif unit_from_name == "milimét":
+            elif unit_from_name == "mm":
                 base_value = value / 1000
             elif unit_from_name == "inch":
                 base_value = value * 0.0254
@@ -860,13 +356,13 @@ def may_tinh(): # Tính năng 4: Máy tính
                 base_value = value # fallback
 
             # Chuyển đổi từ mét sang đơn vị đích
-            if unit_to_name == "mét":
+            if unit_to_name == "m":
                 result = base_value
-            elif unit_to_name == "kilômét":
+            elif unit_to_name == "km":
                 result = base_value / 1000
-            elif unit_to_name == "centimét":
+            elif unit_to_name == "cm":
                 result = base_value * 100
-            elif unit_to_name == "milimét":
+            elif unit_to_name == "mm":
                 result = base_value * 1000
             elif unit_to_name == "inch":
                 result = base_value / 0.0254
@@ -877,8 +373,16 @@ def may_tinh(): # Tính năng 4: Máy tính
             else:
                 result = base_value # fallback
 
+            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
+            display_unit_to_name = ""
+            for key, val in unit_symbols.items():
+                if val == unit_to_name:
+                    display_unit_to_name = key
+                    break
+            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
+                display_unit_to_name = unit_to_name
 
-            length_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(unit_to_name, unit_to_name)}")
+            length_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
         except ValueError:
             messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho chiều dài.")
         except Exception as e:
@@ -891,11 +395,11 @@ def may_tinh(): # Tính năng 4: Máy tính
             unit_to_name = mass_unit_to.get()
 
             # Chuyển đổi về kilogram
-            if unit_from_name == "kilôgam":
+            if unit_from_name == "kg":
                 base_value = value
-            elif unit_from_name == "gram":
+            elif unit_from_name == "g":
                 base_value = value / 1000
-            elif unit_from_name == "miligam":
+            elif unit_from_name == "mg":
                 base_value = value / 1_000_000
             elif unit_from_name == "pound":
                 base_value = value * 0.453592
@@ -905,11 +409,11 @@ def may_tinh(): # Tính năng 4: Máy tính
                 base_value = value
 
             # Chuyển đổi từ kilogram sang đơn vị đích
-            if unit_to_name == "kilôgam":
+            if unit_to_name == "kg":
                 result = base_value
-            elif unit_to_name == "gram":
+            elif unit_to_name == "g":
                 result = base_value * 1000
-            elif unit_to_name == "miligam":
+            elif unit_to_name == "mg":
                 result = base_value * 1_000_000
             elif unit_to_name == "pound":
                 result = base_value / 0.453592
@@ -917,8 +421,17 @@ def may_tinh(): # Tính năng 4: Máy tính
                 result = base_value / 0.0283495
             else:
                 result = base_value
+            
+            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
+            display_unit_to_name = ""
+            for key, val in unit_symbols.items():
+                if val == unit_to_name:
+                    display_unit_to_name = key
+                    break
+            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
+                display_unit_to_name = unit_to_name
 
-            mass_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(unit_to_name, unit_to_name)}")
+            mass_result_label.config(text=f"Kết quả: {result:.4f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
         except ValueError:
             messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho khối lượng.")
         except Exception as e:
@@ -931,26 +444,35 @@ def may_tinh(): # Tính năng 4: Máy tính
             unit_to_name = temp_unit_to.get()
 
             # Chuyển đổi về độ C
-            if unit_from_name == "Celsius":
+            if unit_from_name == "C":
                 base_value = value
-            elif unit_from_name == "Fahrenheit":
+            elif unit_from_name == "F":
                 base_value = (value - 32) * 5/9
-            elif unit_from_name == "Kelvin":
+            elif unit_from_name == "K":
                 base_value = value - 273.15
             else:
                 base_value = value
 
             # Chuyển đổi từ độ C sang đơn vị đích
-            if unit_to_name == "Celsius":
+            if unit_to_name == "C":
                 result = base_value
-            elif unit_to_name == "Fahrenheit":
+            elif unit_to_name == "F":
                 result = (base_value * 9/5) + 32
-            elif unit_to_name == "Kelvin":
+            elif unit_to_name == "K":
                 result = base_value + 273.15
             else:
                 result = base_value
 
-            temp_result_label.config(text=f"Kết quả: {result:.2f} {unit_symbols.get(unit_to_name, unit_to_name)}")
+            # Điều chỉnh tên đơn vị hiển thị cho phù hợp với unit_symbols
+            display_unit_to_name = ""
+            for key, val in unit_symbols.items():
+                if val == unit_to_name:
+                    display_unit_to_name = key
+                    break
+            if not display_unit_to_name: # Nếu không tìm thấy, dùng tên trực tiếp
+                display_unit_to_name = unit_to_name
+                
+            temp_result_label.config(text=f"Kết quả: {result:.2f} {unit_symbols.get(display_unit_to_name, unit_to_name)}")
         except ValueError:
             messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho nhiệt độ.")
         except Exception as e:
@@ -1121,7 +643,8 @@ def may_tinh(): # Tính năng 4: Máy tính
 
     # Khai báo các danh sách đơn vị với ký hiệu hoặc tên đầy đủ để hiển thị trong Combobox
     # Danh sách hiển thị cho người dùng (có thể là tên đầy đủ)
-    length_units_display = ["m", "km", "cm", "mn", "inch", "feet", "yard"]
+    # Đã sửa lại để khớp với cách so sánh trong hàm convert_length/mass/temperature
+    length_units_display = ["m", "km", "cm", "mm", "inch", "feet", "yard"]
     mass_units_display = ["kg", "g", "mg", "pound", "ounce"]
     temp_units_display = ["C", "F", "K"]
 
@@ -1271,6 +794,14 @@ def may_tinh(): # Tính năng 4: Máy tính
 
     # Cập nhật hiển thị vòng 3 ban đầu (nếu là 4 vòng)
     update_resistor_bands_display()
+    
+    # Đảm bảo các biến root, open_toplevels và on_toplevel_close được truyền vào hàm may_tinh
+    # và thêm tinh_nang_4 vào open_toplevels
+    open_toplevels.append(tinh_nang_4)
+    tinh_nang_4.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_4))
+    
+    # Bạn có thể trả về tinh_nang_4 nếu cần tham chiếu đến nó bên ngoài hàm
+    return tinh_nang_4
 ###################################################################################
 global_last_disk_io_counters = psutil.disk_io_counters()
 global_last_time = time.time()
@@ -2447,7 +1978,6 @@ def may_phat_nhac():
     update_button_states()
     tinh_nang_9.after(100, check_pygame_events) # Đã thay đổi root thành tinh_nang_9
     pygame.mixer.quit()
-
 ###################################################################################
 VALID_CITIES_FILE = "valid_cities.txt"
 CITY_LIST_GZ_FILE = "city.list.json.gz"
@@ -3082,12 +2612,121 @@ def ban_do():
     import webbrowser
     webbrowser.open("map.html")
 ###################################################################################
+def dich_thuat():
+    translator = Translator()
+    def translate_text_worker():
+        """
+        Hàm này sẽ chạy trong một luồng riêng để dịch văn bản.
+        Nó sẽ thiết lập một vòng lặp asyncio để 'await' hàm dịch.
+        """
+        text_to_translate = input_text_area.get("1.0", tk.END).strip()
+        if not text_to_translate:
+            # Sử dụng root.after để hiển thị cảnh báo trên luồng chính của Tkinter
+            tinh_nang_14.after(0, lambda: messagebox.showwarning("Cảnh báo", "Vui lòng nhập văn bản để dịch."))
+            return
+
+        target_lang_name = lang_combobox.get()
+        
+        # Tìm mã ngôn ngữ (ví dụ: 'en' cho tiếng Anh) từ tên ngôn ngữ
+        target_lang_code = None
+        for code, name in LANGUAGES.items():
+            if name.lower() == target_lang_name.lower():
+                target_lang_code = code
+                break
+        
+        if not target_lang_code:
+            # Sử dụng root.after để hiển thị lỗi trên luồng chính của Tkinter
+            tinh_nang_14.after(0, lambda: messagebox.showerror("Lỗi", "Không tìm thấy mã cho ngôn ngữ đích đã chọn."))
+            return
+
+        try:
+            # Tạo một vòng lặp sự kiện mới cho luồng này
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Chạy tác vụ dịch bất đồng bộ và đợi nó hoàn thành
+            # translator.translate() được 'await' tại đây
+            translated = loop.run_until_complete(translator.translate(text_to_translate, dest=target_lang_code, src='auto'))
+            
+            # Đóng vòng lặp sự kiện
+            loop.close()
+            
+            # Cập nhật vùng hiển thị kết quả trên luồng chính của Tkinter
+            tinh_nang_14.after(0, lambda: update_output_area(translated.text))
+
+        except Exception as e:
+            # Sử dụng root.after để hiển thị lỗi trên luồng chính của Tkinter
+            tinh_nang_14.after(0, lambda: messagebox.showerror("Lỗi dịch thuật", f"Đã xảy ra lỗi: {e}\nVui lòng kiểm tra kết nối internet hoặc thử lại."))
+
+    def update_output_area(text):
+        """Cập nhật an toàn vùng văn bản hiển thị kết quả trên luồng chính."""
+        output_text_area.config(state=tk.NORMAL) # Cho phép chỉnh sửa tạm thời
+        output_text_area.delete("1.0", tk.END)
+        output_text_area.insert(tk.END, text)
+        output_text_area.config(state=tk.DISABLED) # Đặt lại trạng thái chỉ đọc
+
+    def start_translation():
+        """
+        Bắt đầu quá trình dịch bằng cách tạo một luồng mới.
+        """
+        # Tạo và khởi động một luồng mới cho hàm translate_text_worker
+        translation_thread = threading.Thread(target=translate_text_worker, daemon=True)
+        translation_thread.start()
+
+    # Thiết lập cửa sổ chính
+
+    if not root: # 2 Dòng này nhằm đảm bảo của sổ chính tồn tại 
+        return
+    # Tạo cửa sổ phụ cho tính năng 11     
+    tinh_nang_14 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
+    tinh_nang_14.title("2.Dịch thuật") # Thiết lập tên cho cửa sổ
+    tinh_nang_14.geometry("800x600") # Thiết lập kích thước
+    tinh_nang_14.resizable(True, True)
+    # Đoạn này dùng để thay đổi giao diện 
+    style = ThemedStyle(tinh_nang_14)
+    style.set_theme(current_theme)
+    theme_bg_color = style.lookup(".", "background") or "#F0F0F0"
+    tinh_nang_14.config(bg=theme_bg_color)
+    # Cấu hình grid layout
+    tinh_nang_14.grid_rowconfigure(0, weight=1)
+    tinh_nang_14.grid_rowconfigure(1, weight=0) # Hàng cho nút và combobox
+    tinh_nang_14.grid_rowconfigure(2, weight=1)
+    tinh_nang_14.grid_columnconfigure(0, weight=1)
+    # Vùng nhập liệu
+    input_frame = ttk.LabelFrame(tinh_nang_14, text="Nhập văn bản:")
+    input_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+    input_frame.grid_rowconfigure(0, weight=1)
+    input_frame.grid_columnconfigure(0, weight=1)
+    input_text_area = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, width=60, height=10, font=("Arial", 12))
+    input_text_area.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+    # Thanh điều khiển (Combobox và Nút)
+    control_frame = ttk.Frame(tinh_nang_14)
+    control_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+    control_frame.grid_columnconfigure(0, weight=1) # Cột cho combobox
+    control_frame.grid_columnconfigure(1, weight=0) # Cột cho nút
+    # Tạo danh sách các tên ngôn ngữ được hỗ trợ
+    language_names = sorted([name.title() for name in LANGUAGES.values()])
+    lang_combobox = ttk.Combobox(control_frame, values=language_names, state="readonly", font=("Arial", 10))
+    lang_combobox.set("Tiếng Việt") # Ngôn ngữ mặc định
+    lang_combobox.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+    # Gán hàm start_translation cho nút Dịch
+    translate_button = ttk.Button(control_frame, text="Dịch", command=start_translation)
+    translate_button.grid(row=0, column=1, padx=5, pady=5, sticky="e")
+    # Vùng hiển thị kết quả
+    output_frame = ttk.LabelFrame(tinh_nang_14, text="Văn bản đã dịch:")
+    output_frame.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
+    output_frame.grid_rowconfigure(0, weight=1)
+    output_frame.grid_columnconfigure(0, weight=1)
+    output_text_area = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, width=60, height=10, font=("Arial", 12))
+    output_text_area.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+    output_text_area.config(state=tk.DISABLED) # Đặt trạng thái chỉ đọc
+###################################################################################
 def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
     if not root: # 2 Dòng này nhằm đảm bảo cảu sổ chính tồn tại 
         return
     
     tinh_nang_13 = tk.Toplevel(root)
-    tinh_nang_13.title("14. Đôi lời của nhà sản xuất")
+    tinh_nang_13.title("15. Đôi lời của nhà sản xuất")
     tinh_nang_13.resizable(False, False)
     # Áp dụng chủ đề cho cửa sổ Toplevel
     style = ThemedStyle(tinh_nang_13)
@@ -3121,18 +2760,19 @@ if __name__ == "__main__":
 
     ttk.Label(frm, text="Menu", anchor="center", font=('Arial', 14, 'bold')).grid(column=0, row=0, columnspan=2, sticky="ew", pady=5) 
     ttk.Button(frm, text="1.Đồng hồ và lịch", command=clock).grid(column=0, row=1, columnspan=2, sticky="ew", pady=2)
-  #  ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="2.Máy ảnh", command=camera).grid(column=0, row=2, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="3.Gửi thư", command=gui_thu).grid(column=0, row=3, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="4.Máy tính", command=may_tinh).grid(column=0, row=4, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="5.Thông tin và hiệu năng hệ thống", command=thong_tin_va_hieu_nang).grid(column=0, row=5, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="6. Tìm kiếm thông tin (wikipedia) ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="7. Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="8. Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="9. Máy phát nhạc", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="10. Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="6.Tìm kiếm thông tin (wikipedia) ", command=tim_kiem_thong_tin).grid(column=0, row=6, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="7.Đồng hồ đếm ngược", command=dem_nguoc).grid(column=0, row=7, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="8.Soạn thảo văn bản", command=van_ban).grid(column=0, row=9, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="9.Máy phát nhạc", command=may_phat_nhac).grid(column=0, row=8, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="10.Thời tiết", command=thoi_tiet).grid(column=0, row=10, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="11.Thay đổi giao diện người dùng ", command=giao_dien).grid(column=0, row=11, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="12.Bảng tuần hoàn hóa học", command=bang_tuan_hoan).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
     ttk.Button(frm, text="13.Bản đồ", command=ban_do).grid(column=0, row=12, columnspan=2, sticky="ew", pady=2)
-    ttk.Button(frm, text="14. Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="14.Dịch thuật", command=dich_thuat).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
+    ttk.Button(frm, text="15.Đôi lời của nhà sản xuất ", command=doi_loi).grid(column=0, row=13, columnspan=2, sticky="ew", pady=2)
 
     root.mainloop()
