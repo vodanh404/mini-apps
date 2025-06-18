@@ -131,8 +131,29 @@ def clock(): # Tinh năng 1: Lịch và đồng hồ
 recording = False
 video_writer = None
 status_label = None
-def camera(): # Tính năng 2: Máy ảnh
+
+def on_toplevel_close(toplevel_window):
     global recording, video_writer
+    if toplevel_window.title() == "2. Máy ảnh":
+        # Dừng ghi video nếu đang ghi
+        if recording:
+            recording = False
+            if video_writer is not None:
+                video_writer.release()
+                video_writer = None
+            print("Đã dừng ghi video do đóng cửa sổ.")
+        if hasattr(toplevel_window, 'camera_cap') and toplevel_window.camera_cap.isOpened():
+            toplevel_window.camera_cap.release()
+            print("Đã giải phóng camera.")
+    
+    # Xóa cửa sổ khỏi danh sách các toplevel đang mở
+    if toplevel_window in open_toplevels:
+        open_toplevels.remove(toplevel_window)
+
+    toplevel_window.destroy() # Cuối cùng, hủy cửa sổ
+
+def camera(): # Tính năng 2: Máy ảnh
+    global recording, video_writer, status_label # Thêm status_label vào global
     if not root:
         return
     # Tạo cửa sổ phụ cho tính năng 1
@@ -151,6 +172,7 @@ def camera(): # Tính năng 2: Máy ảnh
     tinh_nang_2.config(bg=theme_bg_color)
 
     cap = cv2.VideoCapture(0)
+    tinh_nang_2.camera_cap = cap 
     if not cap.isOpened():
         # Nếu camera không mở được, hiển thị lỗi và đóng cửa sổ
         messagebox.showerror("Lỗi Camera", "Không thể mở camera. Vui lòng kiểm tra kết nối hoặc quyền truy cập.", parent=tinh_nang_2)
@@ -171,6 +193,16 @@ def camera(): # Tính năng 2: Máy ảnh
     status_label.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
 
     def update_frame():
+        # Kiểm tra xem cửa sổ Toplevel còn tồn tại không trước khi cập nhật
+        if not tinh_nang_2.winfo_exists():
+            if cap.isOpened(): # Chỉ giải phóng nếu nó vẫn đang mở
+                cap.release()
+                print("Camera đã được giải phóng trong update_frame.")
+            if video_writer is not None:
+                video_writer.release()
+                print("Video writer đã được giải phóng trong update_frame.")
+            return
+
         ret, frame = cap.read()
         if ret:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -184,18 +216,7 @@ def camera(): # Tính năng 2: Máy ảnh
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 video_writer.write(frame_bgr)
         
-        if tinh_nang_2.winfo_exists():
-            tinh_nang_2.after(10, update_frame)
-        else:
-            cap.release()
-            if video_writer is not None:
-                video_writer.release()
-
-    def on_closing():
-        cap.release()
-        if video_writer is not None:
-            video_writer.release()
-        root.destroy()
+        tinh_nang_2.after(10, update_frame)
 
     def chup_anh():
         ret, frame = cap.read()
@@ -203,7 +224,7 @@ def camera(): # Tính năng 2: Máy ảnh
             filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".jpg"
             cv2.imwrite(filename, frame)
             status_label.config(text=f"Ảnh đã được lưu: {filename}", foreground="green")
-            tinh_nang_2.after(3000, lambda: status_label.config(text="")) # Xóa thông báo sau 3 giây
+            tinh_nang_2.after(3000, lambda: status_label.config(text="Sẵn sàng", foreground="black")) # Xóa thông báo sau 3 giây
             print(f"Ảnh đã được lưu: {filename}")
 
     def quay_video():
@@ -217,39 +238,38 @@ def camera(): # Tính năng 2: Máy ảnh
             
             if not video_writer.isOpened():
                 status_label.config(text="Lỗi: Không thể tạo file ghi video. Kiểm tra quyền truy cập.", foreground="red")
-                tinh_nang_2.after(3000, lambda: status_label.config(text=""))
+                tinh_nang_2.after(3000, lambda: status_label.config(text="Sẵn sàng", foreground="black"))
                 recording = False
                 video_writer = None
                 return
 
             video_button.config(text="Dừng quay") # Thay đổi tên nút
-            # Không hiển thị thông báo trên status bar khi quay video
+            status_label.config(text=f"Đang quay video: {filename}", foreground="blue")
             print(f"Bắt đầu quay video: {filename}")
         else:
             recording = False
             if video_writer is not None:
                 video_writer.release()
-                # Không hiển thị thông báo trên status bar khi dừng quay video
                 print("Dừng quay video")
             video_writer = None
             video_button.config(text="Quay video") # Thay đổi tên nút về trạng thái ban đầu
+            status_label.config(text="Video đã dừng.", foreground="black")
+            tinh_nang_2.after(3000, lambda: status_label.config(text="Sẵn sàng", foreground="black"))
 
     def mo_kho_luu_tru():
         try:
             path = os.getcwd()
             os.startfile(path)
             status_label.config(text=f"Đang mở kho lưu trữ: {path}", foreground="black")
-            tinh_nang_2.after(3000, lambda: status_label.config(text=""))
+            tinh_nang_2.after(3000, lambda: status_label.config(text="Sẵn sàng", foreground="black"))
         except Exception as e:
             status_label.config(text=f"Lỗi: Không thể mở kho lưu trữ: {e}", foreground="red")
-            tinh_nang_2.after(3000, lambda: status_label.config(text=""))
+            tinh_nang_2.after(3000, lambda: status_label.config(text="Sẵn sàng", foreground="black"))
 
     ttk.Button(tinh_nang_2, text="Chụp ảnh", command=chup_anh).grid(column=0, row=2, columnspan=2, sticky="ew", padx=10, pady=2)
     video_button = ttk.Button(tinh_nang_2, text="Quay video", command=quay_video)
     video_button.grid(column=0, row=3, columnspan=2, sticky="ew", padx=10, pady=2)
-    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=4, columnspan=2, sticky="ew", padx=10, pady=2) # Thay đổi row của nút kho lưu trữ
-
-    # tinh_nang_2.winfo_toplevel().protocol("WM_DELETE_WINDOW", on_closing)
+    ttk.Button(tinh_nang_2, text="Kho lưu trữ", command=mo_kho_luu_tru).grid(column=0, row=4, columnspan=2, sticky="ew", padx=10, pady=2)
     update_frame()
     open_toplevels.append(tinh_nang_2)
     tinh_nang_2.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_2))
@@ -2302,7 +2322,7 @@ def add_category_legend():
     legend_frame.grid_columnconfigure(1, weight=1)
 def display_periodic_table():
     """Hiển thị các nút nguyên tố lên bảng tuần hoàn."""
-    min_cell_size = 50 
+    min_cell_size = 35 
     for i in range(10): # Có thể cần nhiều hàng hơn cho lanthanides/actinides
         periodic_table_frame.grid_rowconfigure(i, weight=1, minsize=min_cell_size)
     for i in range(18): # 18 cột cho các nhóm
@@ -2426,7 +2446,7 @@ def create_widgets(current_root, current_loading_frame):
     info_label.config(bg=theme_bg_color, fg=style.lookup("TLabel", "foreground")) # Đặt màu nền và chữ cho nhãn
     info_label.grid(row=0, column=0, pady=10)
 
-    info_text_area = scrolledtext.ScrolledText(info_frame, wrap=WORD, font=("Arial", 10), width=35, height=25,
+    info_text_area = scrolledtext.ScrolledText(info_frame, wrap=WORD, font=("Arial", 10),
                                              bd=1, relief="solid", padx=5, pady=5)
     info_text_area.grid(row=1, column=0, pady=5, sticky="nsew")
     info_text_area.config(bg=style.lookup("TText", "background"), fg=style.lookup("TText", "foreground")) # Lấy màu nền và chữ từ theme cho Text
@@ -2441,7 +2461,7 @@ def bang_tuan_hoan():
     # Tạo cửa sổ phụ cho tính năng 11     
     tinh_nang_12 = tk.Toplevel(root) # liên kết với của sổ chính bằng root
     tinh_nang_12.title("12. Bảng tuần hoàn hóa học") # Thiết lập tên cho cửa sổ
-     # tinh_nang_12.resizable(False, False) # Loại bỏ khả năng thu phóng của cửa sổ
+    tinh_nang_12.resizable(True, True) 
     try:
         tinh_nang_12.iconbitmap(icon_path)
     except tk.TclError:
@@ -2617,15 +2637,14 @@ def doi_loi(): # Tính năng 13: Đôi lời của nhà sản xuất
     tinh_nang_15.config(bg=theme_bg_color)
     # Nội dung thông điệp
     message = (
-        "Chào mừng bạn đến với ứng dụng của chúng tôi!\n\n" # Thêm dòng trống để dễ đọc
-        "Chúng tôi đã tạo ra ứng dụng này với mong muốn mang lại những tính năng hữu ích "
-        "và trải nghiệm thú vị cho bạn.\n\n" # Ngắt dòng hợp lý
-        "Nếu bạn có bất kỳ câu hỏi, góp ý, hoặc cần hỗ trợ, "
-        "xin đừng ngần ngại liên hệ với chúng tôi.\n\n" # Lời kêu gọi hành động rõ ràng
-        "Chân thành cảm ơn bạn đã tin tưởng và sử dụng ứng dụng!\n\n"
-        "Trân trọng,\n\n"
-        "Đội ngũ sản xuất và phát triển: Đinh Viết Phúc và Ngô Văn Anh Khoa." 
-    )
+    "Chào mừng bạn đến với ứng dụng của chúng tôi - nay đã có phiên bản 1.4 đầy ấn tượng! ✨\n\n"
+    "Chúng tôi đã dồn hết tâm huyết để phát triển ứng dụng này, mong muốn đem lại cho bạn "
+    "những trải nghiệm tuyệt vời và thực sự hữu ích. Phiên bản 1.4 là minh chứng cho sự nỗ lực đó!\n\n"
+    "Đừng ngần ngại khám phá các tính năng mới! Và nếu có bất kỳ thắc mắc hay góp ý nào, "
+    "hãy cho chúng tôi biết nhé. Phản hồi của bạn là động lực để chúng tôi hoàn thiện hơn mỗi ngày.\n\n"
+    "Xin chân thành cảm ơn sự tin tưởng và ủng hộ của bạn!\n\n"
+    "Thân ái,\n"
+    "Đinh Viết Phúc & Ngô Văn Anh Khoa - Đội ngũ phát triển và sáng tạo.")
     ttk.Label(tinh_nang_15, text=message, wraplength=400, justify="left", font=("Arial", 10)).pack(padx=20, pady=20) 
     open_toplevels.append(tinh_nang_15)
     tinh_nang_15.protocol("WM_DELETE_WINDOW", lambda: on_toplevel_close(tinh_nang_15))
